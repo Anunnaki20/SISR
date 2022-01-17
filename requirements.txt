@@ -1,0 +1,3 @@
+numpy
+matplotlib
+flask==2.0.2

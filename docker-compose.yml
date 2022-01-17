@@ -1,0 +1,17 @@
+version: "3"
+
+services:     
+  sisr:
+    container_name: sisr
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    build: .
+    command: python SISR.py
+    volumes:
+      - .:/developer
+    ports:
+      - "5000:5000"
+
