@@ -1,5 +1,7 @@
 # Web Framework
 from flask import Flask
+from flask import request
+from flask import jsonify
 
 # Tensorflow libraries
 import tensorflow as tf
@@ -18,9 +20,12 @@ import subprocess
 app = Flask(__name__)
 
 # Base URL
-@app.route('/')
+@app.route('/', methods=["POST"])
 def test():
-    return "Success"
+    data = request.get_json()
+    print(data)
+    return jsonify(f"Hey! {data}")
+
 
 # Run the server on the local host
 if __name__ == '__main__':
