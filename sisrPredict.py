@@ -72,6 +72,11 @@ log = open(outputDir + '/sisrPredict.log', 'a+')
 
 # Logging function
 def xprint(string):
+    """Writes string data to the log file with the current time and date.
+
+    Args:
+        string (string): The string value you want to right to the log file
+    """
     string = (datetime.datetime.now().strftime("%H:%M:%S")) + ' ' + string
     print(string)
     log.write(string + '\n')
@@ -81,6 +86,11 @@ def xprint(string):
 
 # Get input file
 def Load_inputs():
+    """Reads the system args to determine the input file, scale amount, and either upscale or downscale
+
+    Returns:
+        string, string, bool, int: the name of the CNN model, name of the image to upscale, if we are downscale, scale amount
+    """
 
     # If not enough arguments are given. Print what it should be then quit
     if len(sys.argv) < 4:
@@ -138,6 +148,15 @@ def Load_inputs():
 
 # Helper functions
 def DetermineComparisons(image1, image2):
+    """Compares 2 images together using Mean squared error, Peak signal to noise ratio, and structural similarity
+
+    Args:
+        image1 (numpy array): The first image we are comparing with
+        image2 (numpy array): The image we are comparing to the first one
+
+    Returns:
+        numpy array: image comparison data
+    """
     mse = skimage.measure.compare_mse(image1, image2)
     psnr = skimage.measure.compare_psnr(image1, image2)
     ssim = skimage.measure.compare_ssim(image1, image2)
@@ -146,7 +165,14 @@ def DetermineComparisons(image1, image2):
 
 # Upscale 
 def predict(model, filename, downsample, scale):
+    """Using the CNN to upscale the image
 
+    Args:
+        model (keras model): The loaded keras model
+        filename (string): Name of the image to upscale
+        downsample (bool): Determines if we are downscaling the image or not
+        scale (int): The scale that we are upscaling too. Either 2 or 4
+    """
     count = 0
     outPatchRows = inPatchRows - offset * 2
     outPatchCols = inPatchCols - offset * 2
@@ -154,8 +180,6 @@ def predict(model, filename, downsample, scale):
     blList = numpy.empty((0,3))
     bcList = numpy.empty((0,3))
     reconList = numpy.empty((0,3))
-
-    print(str(downsample))
 
     xprint('Processing file "%s"...' % (filename))
     (basename, ext) = os.path.splitext(filename)
