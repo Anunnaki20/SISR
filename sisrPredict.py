@@ -6,20 +6,29 @@
 #------------------------------------------------------------
 
 # All the imports we need
-from numba import jit
+from operator import gt
 import warnings
 import sys
 import time
+import numpy
+import os
+import datetime
+
+# Machine learning libraries
+from keras.models import load_model
+import tensorflow as tf
+from tensorflow.python.client import device_lib
+
+# image manipulation libraries
 import skimage.io
 import skimage.transform
 import skimage.color
-import numpy
-from keras.models import load_model
-import tensorflow as tf
-import os
-import cv2
-from tensorflow.python.client import device_lib
-import datetime
+from PIL import Image, ImageOps
+
+
+#Speed up libraries
+from numba import jit
+from joblib import Parallel, delayed
 
 #------------------------------------------------------------
 # Settings
@@ -70,7 +79,8 @@ log = open(outputDir + '/sisrPredict.log', 'a+')
 #------------------------------------------------------------
 
 
-# Logging function
+# Logging 
+# @jit
 def xprint(string):
     """Writes string data to the log file with the current time and date.
 
@@ -84,7 +94,8 @@ def xprint(string):
     return
 
 
-# Get input file
+# Get input 
+# @jit(parallel=True)
 def Load_inputs():
     """Reads the system args to determine the input file, scale amount, and either upscale or downscale
 
@@ -147,7 +158,9 @@ def Load_inputs():
     
 
 # Helper functions
+# @jit(parallel=True)
 def DetermineComparisons(image1, image2):
+    
     """Compares 2 images together using Mean squared error, Peak signal to noise ratio, and structural similarity
 
     Args:
@@ -157,13 +170,26 @@ def DetermineComparisons(image1, image2):
     Returns:
         numpy array: image comparison data
     """
-    mse = skimage.measure.compare_mse(image1, image2)
-    psnr = skimage.measure.compare_psnr(image1, image2)
-    ssim = skimage.measure.compare_ssim(image1, image2)
+    mse = skimage.metrics.mean_squared_error(image1, image2)
+    psnr = skimage.metrics.peak_signal_noise_ratio(image1, image2)
+    ssim = skimage.metrics.structural_similarity(image1, image2)
     return numpy.array([[mse, psnr, ssim]])
-    
 
-# Upscale 
+
+def normalize_to_range(array, endpoint):
+    """Normalizes all of the data in a numpy array to [0, endpoint]
+
+    Args:
+        array (numpy): a numpy array
+        endpoint (float): the upper range of the normalized data
+    """
+    array = array.astype('float32') 
+    array *= (endpoint/array.max())
+    return array
+
+
+# Upscale
+# @jit(fastmath=True,boundscheck=True )
 def predict(model, filename, downsample, scale):
     """Using the CNN to upscale the image
 
@@ -184,60 +210,88 @@ def predict(model, filename, downsample, scale):
     xprint('Processing file "%s"...' % (filename))
     (basename, ext) = os.path.splitext(filename)
 
-    # Get ground truth image and convert to 'effectively' 12-bit grayscale
-    gtImage = skimage.img_as_float(skimage.io.imread(filename))
-    gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(gtImage))) & 0xFFF0
-    gtImage = skimage.img_as_float(gtImage)
+    # Open the image and covnert it to grayscale and save it
+    gtImage = Image.open(filename).convert("L")
     saveFileName = '%s/%s_gtImage.png' % (outputDir, basename)
-    skimage.io.imsave(saveFileName, gtImage)
+    gtImage.save(saveFileName)
 
-    # Downsample image for CNN comparison
+    smallImage = gtImage
+    downsampleIndicator = 'x'
+    # Downsample image for CNN comparison if enabled
     if downsample:
         # Generate "low resolution" image 
-        smallImage = skimage.transform.downscale_local_mean(gtImage, (scale, scale))
+        smallImage = gtImage.resize(( int(gtImage.height/scale), int(gtImage.width/scale) ), Image.NEAREST)
         downsampleIndicator = ''
         saveFileName = '%s/%s_%s%d_downSample.png' % (outputDir, basename, downsampleIndicator, scale)
-        skimage.io.imsave(saveFileName, smallImage)
-    else:
-        smallImage = gtImage
-        downsampleIndicator = 'x'
+        smallImage.save(saveFileName)
+
+        # Normalize and convert PIL image to numpy array
+        gtImage_norm = numpy.array(gtImage)
+        gtImage_norm = normalize_to_range(gtImage_norm, 65535.0)
+        gtImage_norm = gtImage_norm.astype('uint')
+        numpy.bitwise_and(gtImage_norm, 0xFFF0)
+        gtImage_norm = normalize_to_range(gtImage_norm, 1.0)
     
+
     # Create variabels for image reconstruction
-    inRows = smallImage.shape[0] * scale
-    inCols = smallImage.shape[1] * scale
+    inRows = smallImage.height * scale
+    inCols = smallImage.width * scale
     outRows = inRows - offset * 2
     outCols = inCols - offset * 2
 
-    # if we downsample upscale and save the NN and Bi-Linear images
-    if downsample:
-        # Upsample using nearest neighbour interpolation
-        nnImage = skimage.transform.resize(smallImage, (inRows, inCols), order=0)
-        saveFileName = '%s/%s_%s%d_nnImage.png' % (outputDir, basename, downsampleIndicator, scale)
-        skimage.io.imsave(saveFileName, nnImage)
-        nnList = numpy.append(nnList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], nnImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
-        
-        # Upsample using bilinear interpolation
-        blImage = skimage.transform.resize(smallImage, (inRows, inCols), order=1)
-        saveFileName = '%s/%s_%s%d_blImage.png' % (outputDir, basename, downsampleIndicator, scale)
-        skimage.io.imsave(saveFileName, blImage)
-        blList = numpy.append(blList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], blImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
 
-
-    # Upsample using bicubic interpolation
+    # -------------------Upscale using Bicubic ---------------------
     starttime_BC = time.process_time()
-    bcImage = skimage.transform.resize(smallImage, (inRows, inCols), order=3)
+    bcImage = smallImage.resize((inRows, inCols), Image.BICUBIC)
     saveFileName = '%s/%s_%s%d_bcImage.png' % (outputDir, basename, downsampleIndicator, scale)
-    skimage.io.imsave(saveFileName, bcImage)
+    bcImage.save(saveFileName)
+
+    # Normalize data to 0xFFFF then set it to 'effictivly' 12-bit (0xFFF0)
+    bcImage = numpy.array(bcImage)
+    bcImage = normalize_to_range(bcImage, 65535.0)
+    bcImage = bcImage.astype('uint')
+    numpy.bitwise_and(bcImage, 0xFFF0)
+    bcImage = normalize_to_range(bcImage, 1.0)
     xprint("Time to upscale to Bi-Cubic = %f" % (time.process_time() - starttime_BC))
 
 
     if downsample:
-        bcList = numpy.append(bcList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], bcImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
+        # ------------------- Upsample using nearest neighbour interpolation ---------------------
+        nnImage = smallImage.resize((inRows, inCols), Image.NEAREST)
+        saveFileName = '%s/%s_%s%d_nnImage.png' % (outputDir, basename, downsampleIndicator, scale)
+        nnImage.save(saveFileName)
+
+        # convert the PIL image to an array and make it 12-bit
+        nnImage_test = numpy.array(nnImage)
+        nnImage_test = normalize_to_range(nnImage_test, 65535.0)
+        nnImage_test = nnImage_test.astype('uint')
+        numpy.bitwise_and(nnImage_test, 0xFFF0)
+        nnImage = normalize_to_range(nnImage_test, 1.0)
+
+        nnList = numpy.append(nnList, DetermineComparisons(gtImage_norm[offset:offset+outRows, offset:offset+outCols], nnImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
+        # ------------------------------------------------------------------------------------
+
+        # ------------------- Upsample using bilinear interpolation ---------------------
+        saveFileName = '%s/%s_%s%d_blImage.png' % (outputDir, basename, downsampleIndicator, scale)
+        blImage = smallImage.resize((inRows, inCols), Image.BILINEAR)
+        blImage.save(saveFileName)
+        
+        # Convert the PIL image to an array and make it 12-bit
+        blImage_test = numpy.array(blImage)
+        blImage_test = normalize_to_range(blImage_test, 65535.0)
+        blImage_test = blImage_test.astype('uint')
+        numpy.bitwise_and(blImage_test, 0xFFF0)
+        blImage = normalize_to_range(blImage_test, 1.0)
+        blList = numpy.append(blList, DetermineComparisons(gtImage_norm[offset:offset+outRows, offset:offset+outCols], blImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
+        # ------------------------------------------------------------------------------------
+
+        # Compare the GT with the bicubic
+        bcList = numpy.append(bcList, DetermineComparisons(gtImage_norm[offset:offset+outRows, offset:offset+outCols], bcImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
 
 
     # Scan across in patches to reconstruct the full image
-    outImage = numpy.zeros((outRows, outCols))
     r = 0
+    outImage = numpy.zeros((outRows, outCols))
     CNNTime = time.process_time()
 
     # break image into patches and upscale then put back together
@@ -254,7 +308,6 @@ def predict(model, filename, downsample, scale):
                 inPatch, 
                 batch_size=32,
                 verbose=0,
-                #use_multiprocessing=True
             )
             outImage[r:r + outPatchRows, c:c + outPatchCols] = result[0, :, : , 0]
             c = c + outPatchCols
@@ -263,12 +316,20 @@ def predict(model, filename, downsample, scale):
     # Save the CNN image
     saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
     outImage[outImage > 1] = 1
+
+    # TODO figure out how to covnert numpy array to pillow image 
+    # outImage = normalize_to_range(bcImage, 65520)
+    # outImage = bcImage.astype('uint')
+    # print(outImage)
+    # outImage = Image.fromarray(outImage)
+    # outImage.save(saveFileName)
+
     skimage.io.imsave(saveFileName, outImage)
     xprint('Time to upscale using CNN = %f' % (time.process_time() - CNNTime))
 
     # Compare reconstructed image to groundtruth image
     if downsample:
-        reconList = numpy.append(reconList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], outImage), axis=0)
+        reconList = numpy.append(reconList, DetermineComparisons(gtImage_norm[offset:offset+outRows, offset:offset+outCols], outImage), axis=0)
         xprint('     NearNeighour    Bi-Linear     Bi-Cubic  Reconstruct   Difference')
         xprint('MSE  %12.6f %12.6f %12.6f %12.6f %12.6f' % 
         (nnList[count-1,0], blList[count-1,0], bcList[count-1,0], reconList[count-1,0], reconList[count-1,0] - bcList[count-1,0]))
