@@ -140,6 +140,11 @@ def quality_test(original_image_file, scale):
     original_image = skimage.img_as_float(original_image)
     smallImage = skimage.transform.downscale_local_mean(original_image, (scale, scale))
 
+    # original_image_cv = cv2.imread(original_image_file).astype(numpy.float32)
+    # original_image_cv = cv2.cvtColor(original_image_cv, cv2.COLOR_BGR2GRAY)
+    # original_image_cv = cv2.cvtColor(original_image_cv, cv2.COLOR_BGR2RGB)
+    # smallImage_cv = cv2.resize(original_image_cv, (128, 128), interpolation = cv2.INTER_CUBIC)
+
     # Special version for pil
     original_image_pil = Image.open(original_image_file).convert("L")
     smallImage_pil = original_image_pil.resize(( int(original_image_pil.height/scale), int(original_image_pil.width/scale) ), Image.BICUBIC)
@@ -153,6 +158,8 @@ def quality_test(original_image_file, scale):
     NN_ski_data = DetermineComparisons(original_image, NN_ski_image)
 
     NN_cv_image = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_NEAREST)
+    saveFileName = "output/NN_CV_TESTING.png"
+    skimage.io.imsave(saveFileName, NN_cv_image)
     NN_cv_data = DetermineComparisons(original_image, NN_cv_image)
 
     NN_pil_image = smallImage_pil.resize((inRows_pil, inCols_pil), Image.NEAREST)
