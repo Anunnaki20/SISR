@@ -20,10 +20,17 @@ import tensorflow as tf
 from tensorflow.python.client import device_lib
 
 # image manipulation libraries
+
+# Original
 import skimage.io
 import skimage.transform
 import skimage.color
-from PIL import Image, ImageOps
+
+# Lowest Quality
+from PIL import Image
+
+# Currently testing
+import cv2
 
 
 #Speed up libraries
@@ -80,7 +87,6 @@ log = open(outputDir + '/sisrPredict.log', 'a+')
 
 
 # Logging 
-# @jit
 def xprint(string):
     """Writes string data to the log file with the current time and date.
 
@@ -95,7 +101,6 @@ def xprint(string):
 
 
 # Get input 
-# @jit(parallel=True)
 def Load_inputs():
     """Reads the system args to determine the input file, scale amount, and either upscale or downscale
 
@@ -158,7 +163,6 @@ def Load_inputs():
     
 
 # Helper functions
-# @jit(parallel=True)
 def DetermineComparisons(image1, image2):
     
     """Compares 2 images together using Mean squared error, Peak signal to noise ratio, and structural similarity
@@ -189,7 +193,6 @@ def normalize_to_range(array, endpoint):
 
 
 # Upscale
-# @jit(fastmath=True,boundscheck=True )
 def predict(model, filename, downsample, scale):
     """Using the CNN to upscale the image
 
@@ -295,6 +298,7 @@ def predict(model, filename, downsample, scale):
     CNNTime = time.process_time()
 
     # break image into patches and upscale then put back together
+    # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
     while r < outRows:
         if r + outPatchRows > outRows:
             r = outRows - outPatchRows

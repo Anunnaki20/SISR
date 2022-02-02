@@ -9,7 +9,7 @@ services:
           devices:
             - capabilities: [gpu]
     build: .
-    command: python sisrPredict.py testing/000087.png -s 4
+    command: python BL_NN_BC.py
     volumes:
       - .:/developer
     ports:
