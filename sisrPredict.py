@@ -25,11 +25,6 @@ from tensorflow.python.client import device_lib
 import skimage.io
 import skimage.transform
 import skimage.color
-
-# Lowest Quality
-from PIL import Image
-
-# Currently testing
 import cv2
 
 
@@ -214,13 +209,12 @@ def predict(model, filename, downsample, scale):
     (basename, ext) = os.path.splitext(filename)
 
     # Open the image and covnert it to grayscale and 12-bit and save it
-    # gtImage = skimage.img_as_float(skimage.io.imread(filename))
     gtImage = skimage.io.imread(filename)
     gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(gtImage))) & 0xFFF0
     gtImage = skimage.img_as_float(gtImage)
 
     saveFileName = '%s/%s_gtImage.png' % (outputDir, basename)
-    skimage.io.imsave(saveFileName, gtImage)
+    #skimage.io.imsave(saveFileName, gtImage)
 
     smallImage = gtImage
     downsampleIndicator = 'x'
@@ -247,21 +241,21 @@ def predict(model, filename, downsample, scale):
     # bcImage = (bcImage - numpy.min(bcImage))/numpy.ptp(bcImage) # normalize to [0,1]
     saveFileName = '%s/%s_%s%d_bcImage.png' % (outputDir, basename, downsampleIndicator, scale)
     xprint("Time to upscale to Bi-Cubic = %f" % (time.process_time() - starttime_BC))
-    skimage.io.imsave(saveFileName, bcImage)
+    #skimage.io.imsave(saveFileName, bcImage)
 
 
     if downsample:
         # ------------------- Upsample using nearest neighbour interpolation ---------------------
         nnImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_NEAREST)
         saveFileName = '%s/%s_%s%d_nnImage.png' % (outputDir, basename, downsampleIndicator, scale)
-        skimage.io.imsave(saveFileName, nnImage)
+        #skimage.io.imsave(saveFileName, nnImage)
         nnList = numpy.append(nnList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], nnImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
         # ------------------------------------------------------------------------------------
 
         # ------------------- Upsample using bilinear interpolation ---------------------
         saveFileName = '%s/%s_%s%d_blImage.png' % (outputDir, basename, downsampleIndicator, scale)
         blImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_LINEAR)
-        skimage.io.imsave(saveFileName, blImage)
+        #skimage.io.imsave(saveFileName, blImage)
         blList = numpy.append(blList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], blImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
         # ------------------------------------------------------------------------------------
 
@@ -297,9 +291,8 @@ def predict(model, filename, downsample, scale):
     # Save the CNN image
     saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
     outImage[outImage > 1] = 1
-    #outImage = cv2.normalize(outImage,  outImage, 0, 0xFFFF, cv2.NORM_MINMAX)
     xprint('Time to upscale using CNN = %f' % (time.process_time() - CNNTime))
-    skimage.io.imsave(saveFileName, outImage)
+    #skimage.io.imsave(saveFileName, outImage)
 
     # Compare reconstructed image to groundtruth image
     if downsample:
@@ -332,7 +325,7 @@ if __name__ == '__main__':
 
     # Load CNN
     xprint('Using model = ' + modelName)
-    model = load_model(modelName)
+    model = load_model(modelName, compile=False)
     model.summary()
     xprint(delimiter)
     xprint("Time to load model and set up upscaling parameters = %f" % (time.process_time() - startTimeX))
