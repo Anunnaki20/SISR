@@ -8,3 +8,4 @@ joblib
 numba
 Pillow
 tabulate
+pydicom
