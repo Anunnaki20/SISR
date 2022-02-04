@@ -315,11 +315,11 @@ def predict(model, filename, downsample, scale):
             # r = r + outPatchRows
     # Save the CNN image
 
-    final_image = []
+    final_image_list = []
     for i in result:
-        final_image.append(numpy.squeeze(i, axis=2))
+        final_image_list.append(numpy.squeeze(i, axis=2))
 
-    final_image = numpy.array(final_image)
+    final_image = numpy.array(final_image_list)
     print(numpy.shape(final_image))
     # skimage.io.imsave("TEST.png", final_image)
 
