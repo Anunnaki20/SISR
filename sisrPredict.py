@@ -13,8 +13,10 @@ import time
 import numpy
 import os
 import datetime
+import multiprocessing as mp
 
 # Machine learning libraries
+import keras
 from keras.models import load_model
 import tensorflow as tf
 from tensorflow.python.client import device_lib
@@ -27,10 +29,7 @@ import skimage.transform
 import skimage.color
 import cv2
 
-
-#Speed up libraries
-from numba import jit
-from joblib import Parallel, delayed
+# keras.backend.set_learning_phase(0)
 
 #------------------------------------------------------------
 # Settings
@@ -68,7 +67,7 @@ local_device_protos = device_lib.list_local_devices()
 ([x.name for x in local_device_protos if x.device_type == 'GPU'], 
  [x.name for x in local_device_protos if x.device_type == 'CPU'])
 
-#tf.keras.layers.LSTM(64, return_sequences=True, stateful=True, unroll=True)
+# sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
 tf.compat.v1.disable_eager_execution()
 print(tf.executing_eagerly())
 
@@ -187,6 +186,29 @@ def normalize_to_range(array, endpoint):
     return array
 
 
+def breakiamge_toPatches(image, patchshape):
+
+    patch_list = []
+    img_height, img_width = numpy.shape(image)
+    patch_height, patch_width = patchshape
+
+    patch_array = image.reshape(img_height // patch_height,
+                                patch_height,
+                                img_width // patch_width,
+                                patch_width)
+    patch_array = patch_array.swapaxes(1,2)
+
+    for i in patch_array:
+        for j in i:
+            temp = numpy.expand_dims(j, axis = -1)
+            temp = numpy.expand_dims(temp, axis = 0)
+            patch_list.append(temp)
+
+
+    return patch_list
+
+
+
 # Upscale
 def predict(model, filename, downsample, scale):
     """Using the CNN to upscale the image
@@ -268,31 +290,44 @@ def predict(model, filename, downsample, scale):
     outImage = numpy.zeros((outRows, outCols))
     CNNTime = time.process_time()
 
+    patch_image = breakiamge_toPatches(bcImage, (128,128))
+
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
-    while r < outRows:
-        if r + outPatchRows > outRows:
-            r = outRows - outPatchRows
-        c = 0
-        while c < outCols:
-            if c + outPatchCols > outCols:
-                c = outCols - outPatchCols
-            inPatch = bcImage[r:r + inPatchRows, c:c + inPatchCols]
-            inPatch = inPatch.reshape(1, inPatchRows, inPatchCols, 1)
-            result = model.predict(
-                inPatch, 
-                batch_size=32,
-                verbose=0,
-            )
-            outImage[r:r + outPatchRows, c:c + outPatchCols] = result[0, :, : , 0]
-            c = c + outPatchCols
-        r = r + outPatchRows
-
+    with tf.device('/gpu:0'):
+        # while r < outRows:
+        #     if r + outPatchRows > outRows:
+        #         r = outRows - outPatchRows
+        #     c = 0
+        #     while c < outCols:
+        #         if c + outPatchCols > outCols:
+        #             c = outCols - outPatchCols
+        #         inPatch = bcImage[r:r + inPatchRows, c:c + inPatchCols]
+        #         inPatch = inPatch.reshape(1, inPatchRows, inPatchCols, 1)
+        result = model.predict(
+            numpy.vstack(patch_image), 
+            batch_size=len(patch_image)
+        )
+            #     temp = result[0, :, : , 0]
+            #     print(numpy.shape(temp))
+            #     outImage[r:r + outPatchRows, c:c + outPatchCols] = result[0, :, : , 0]
+            #     c = c + outPatchCols
+            # r = r + outPatchRows
     # Save the CNN image
-    saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
-    outImage[outImage > 1] = 1
+
+    final_image = []
+    for i in result:
+        final_image.append(numpy.squeeze(i, axis=2))
+
+    final_image = numpy.array(final_image)
+    print(numpy.shape(final_image))
+    # skimage.io.imsave("TEST.png", final_image)
+
+    # saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
+    # outImage[outImage > 1] = 1
     xprint('Time to upscale using CNN = %f' % (time.process_time() - CNNTime))
-    #skimage.io.imsave(saveFileName, outImage)
+    quit()
+    skimage.io.imsave(saveFileName, outImage)
 
     # Compare reconstructed image to groundtruth image
     if downsample:

@@ -9,7 +9,7 @@ services:
           devices:
             - capabilities: [gpu]
     build: .
-    command: python simple_convert_dicom_to_png.py # sisrPredict.py testing/000087.png -s 4   # python BL_NN_BC.py      # python SISR.py
+    command: python sisrPredict.py testing/000087.png -s 4 # simple_convert_dicom_to_png.py  # python BL_NN_BC.py      # python SISR.py
     volumes:
       - .:/developer
     ports:
