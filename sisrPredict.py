@@ -328,40 +328,60 @@ def predict(model, filename, downsample, scale):
             #     c = c + outPatchCols
             # r = r + outPatchRows
 
-    # Save the CNN image
-    rows = numpy.zeros((1,1))
-    cols = numpy.zeros((1,1))
+
     count = 0
+    final_matrix = []
+    inner = []
     for i in result:
-        patch = numpy.squeeze(i, axis=2) # remove the extra dimansion to make it (116,116)
-
-        # if rows is a zeros array set it to patch and move forward in the loop
-        if rows.sum() == 0:
-            rows = patch
-            continue
-        if count < 15:
-            rows = numpy.hstack((rows, patch)) # Connect all the patches on the same row together
+        if count < 16:
+            inner.append(numpy.squeeze(i, axis=2))
             count += 1
+            if count >= 16:
+                final_matrix.append(inner.copy())
+                inner = []
+                count = 0
         
-        if count == 15:
-            # if col is a zeros array copy rows to cols and create a new rows array
-            if cols.sum() == 0:
-                cols = numpy.copy(rows)
-                rows = numpy.zeros((1,1))
-            # Add the rows to the column and create a empty rows array
-            else:
-                cols = numpy.vstack((cols, rows))
-                rows = numpy.zeros((1,1))
-            count = 0
+    final_matrix = numpy.array(final_matrix)
+    numrows, numcols, height, width = numpy.array(final_matrix).shape
+    final_matrix = final_matrix.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
+    skimage.io.imsave("TEST.png", final_matrix)
+    quit()
 
-    final_image = cols
+    # Save the CNN image
+    # rows = numpy.zeros((1,1))
+    # cols = numpy.zeros((1,1))
+    # count = 0
+    
+    # for i in result:
+    #     patch = numpy.squeeze(i, axis=2) # remove the extra dimansion to make it (116,116)
+
+    #     # if rows is a zeros array set it to patch and move forward in the loop
+    #     if rows.sum() == 0:
+    #         rows = patch
+    #         continue
+    #     if count < 15:
+    #         rows = numpy.hstack((rows, patch)) # Connect all the patches on the same row together
+    #         count += 1
+        
+    #     if count == 15:
+    #         # if col is a zeros array copy rows to cols and create a new rows array
+    #         if cols.sum() == 0:
+    #             cols = numpy.copy(rows)
+    #             rows = numpy.zeros((1,1))
+    #         # Add the rows to the column and create a empty rows array
+    #         else:
+    #             cols = numpy.vstack((cols, rows))
+    #             rows = numpy.zeros((1,1))
+    #         count = 0
+
+    # final_image = cols
     print(numpy.shape(final_image))
     # skimage.io.imsave("TEST.png", final_image)
 
     # saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
     # outImage[outImage > 1] = 1
     xprint('Time to upscale using CNN = %f' % (time.process_time() - CNNTime))
-    skimage.io.imsave(saveFileName, final_image)
+    # skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
     if downsample:
