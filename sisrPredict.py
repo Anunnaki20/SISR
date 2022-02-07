@@ -7,6 +7,7 @@
 
 # All the imports we need
 from operator import gt
+import re
 import warnings
 import sys
 import time
@@ -78,6 +79,15 @@ if not os.path.isdir(outputDir):
 # Open the loggin file
 log = open(outputDir + '/sisrPredict.log', 'a+')
 #------------------------------------------------------------
+# Used to time fucntions
+def _time(f):
+    def wrapper(*args):
+        start = time.time()
+        r = f(*args)
+        end = time.time()
+        print("%s timed %f" % (f.__name__, end-start) )
+        return r
+    return wrapper
 
 
 # Logging 
@@ -93,8 +103,8 @@ def xprint(string):
     log.flush()
     return
 
-
 # Get input 
+@_time
 def Load_inputs():
     """Reads the system args to determine the input file, scale amount, and either upscale or downscale
 
@@ -157,6 +167,7 @@ def Load_inputs():
     
 
 # Helper functions
+@_time
 def DetermineComparisons(image1, image2):
     
     """Compares 2 images together using Mean squared error, Peak signal to noise ratio, and structural similarity
@@ -173,7 +184,7 @@ def DetermineComparisons(image1, image2):
     ssim = skimage.metrics.structural_similarity(image1, image2)
     return numpy.array([[mse, psnr, ssim]])
 
-
+@_time
 def normalize_to_range(array, endpoint):
     """Normalizes all of the data in a numpy array to [0, endpoint]
 
@@ -185,7 +196,7 @@ def normalize_to_range(array, endpoint):
     array *= (endpoint/array.max())
     return array
 
-
+@_time
 def breakiamge_toPatches(image, patchshape):
 
     patch_list = []
@@ -197,6 +208,7 @@ def breakiamge_toPatches(image, patchshape):
                                 img_width // patch_width,
                                 patch_width)
     patch_array = patch_array.swapaxes(1,2)
+    print(numpy.shape(patch_array))
 
     for i in patch_array:
         for j in i:
@@ -210,6 +222,7 @@ def breakiamge_toPatches(image, patchshape):
 
 
 # Upscale
+@_time
 def predict(model, filename, downsample, scale):
     """Using the CNN to upscale the image
 
@@ -235,7 +248,7 @@ def predict(model, filename, downsample, scale):
     gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(gtImage))) & 0xFFF0
     gtImage = skimage.img_as_float(gtImage)
 
-    saveFileName = '%s/%s_gtImage.png' % (outputDir, basename)
+    # saveFileName = '%s/%s_gtImage.png' % (outputDir, basename)
     #skimage.io.imsave(saveFileName, gtImage)
 
     smallImage = gtImage
@@ -264,7 +277,8 @@ def predict(model, filename, downsample, scale):
     saveFileName = '%s/%s_%s%d_bcImage.png' % (outputDir, basename, downsampleIndicator, scale)
     xprint("Time to upscale to Bi-Cubic = %f" % (time.process_time() - starttime_BC))
     #skimage.io.imsave(saveFileName, bcImage)
-
+    print("Before shape")
+    print(numpy.shape(bcImage))
 
     if downsample:
         # ------------------- Upsample using nearest neighbour interpolation ---------------------
@@ -313,15 +327,36 @@ def predict(model, filename, downsample, scale):
             #     outImage[r:r + outPatchRows, c:c + outPatchCols] = result[0, :, : , 0]
             #     c = c + outPatchCols
             # r = r + outPatchRows
+
     # Save the CNN image
-
-    final_image_list = []
+    rows = numpy.zeros((1,1))
+    cols = numpy.zeros((1,1))
+    count = 0
     for i in result:
-        final_image_list.append(numpy.squeeze(i, axis=2))
+        patch = numpy.squeeze(i, axis=2) # remove the extra dimansion to make it (116,116)
 
-    final_image = numpy.array(final_image_list)
+        # if rows is a zeros array set it to patch and move forward in the loop
+        if rows.sum() == 0:
+            rows = patch
+            continue
+        if count < 15:
+            rows = numpy.hstack((rows, patch)) # Connect all the patches on the same row together
+            count += 1
+        
+        if count == 15:
+            # if col is a zeros array copy rows to cols and create a new rows array
+            if cols.sum() == 0:
+                cols = numpy.copy(rows)
+                rows = numpy.zeros((1,1))
+            # Add the rows to the column and create a empty rows array
+            else:
+                cols = numpy.vstack((cols, rows))
+                rows = numpy.zeros((1,1))
+            count = 0
+
+    final_image = cols
     print(numpy.shape(final_image))
-    # skimage.io.imsave("TEST.png", final_image)
+    skimage.io.imsave("TEST.png", final_image)
 
     # saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
     # outImage[outImage > 1] = 1
