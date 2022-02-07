@@ -356,13 +356,12 @@ def predict(model, filename, downsample, scale):
 
     final_image = cols
     print(numpy.shape(final_image))
-    skimage.io.imsave("TEST.png", final_image)
+    # skimage.io.imsave("TEST.png", final_image)
 
     # saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
     # outImage[outImage > 1] = 1
     xprint('Time to upscale using CNN = %f' % (time.process_time() - CNNTime))
-    quit()
-    skimage.io.imsave(saveFileName, outImage)
+    skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
     if downsample:
