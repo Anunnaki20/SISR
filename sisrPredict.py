@@ -224,7 +224,8 @@ def extract_patches(image):
     image = numpy.expand_dims(image, axis = 0)
     image = numpy.expand_dims(image, axis = -1)
     patches =  tf.image.extract_patches(image ,patch_size, [1, 116,116, 1], [1, 1, 1, 1], 'VALID')
-    return tf.reshape(patches, [289,128,128,1])
+    notneeded, row, col, notneeded2 = patches.shape
+    return tf.reshape(patches, [row*col,128,128,1])
 
 # Upscale
 @_time
