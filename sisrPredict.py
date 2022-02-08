@@ -69,8 +69,15 @@ local_device_protos = device_lib.list_local_devices()
  [x.name for x in local_device_protos if x.device_type == 'CPU'])
 
 sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
+tf.config.optimizer.set_experimental_options(
+    {'debug_stripper': True,
+    'constant_folding': True,
+    'loop_optimization': True,
+    'scoped_allocator_optimization': True,
+    'arithmetic_optimization': True}
+)
+
 # tf.compat.v1.disable_eager_execution()
-print(tf.executing_eagerly())
 
 # Make directories if necessary
 if not os.path.isdir(outputDir):
@@ -79,12 +86,14 @@ if not os.path.isdir(outputDir):
 # Open the loggin file
 log = open(outputDir + '/sisrPredict.log', 'a+')
 #------------------------------------------------------------
+
+
 # Used to time fucntions
 def _time(f):
     def wrapper(*args):
-        start = time.process_time()
+        start = time.time() 
         r = f(*args)
-        end = time.process_time()
+        end = time.time() 
         print("%s timed %f" % (f.__name__, end-start) )
         return r
     return wrapper
@@ -225,7 +234,7 @@ def extract_patches(image):
     image = numpy.expand_dims(image, axis = -1)
     patches =  tf.image.extract_patches(image ,patch_size, [1, 116,116, 1], [1, 1, 1, 1], 'VALID')
     notneeded, row, col, notneeded2 = patches.shape
-    return tf.reshape(patches, [row*col,128,128,1])
+    return row, tf.reshape(patches, [row*col,128,128,1])
 
 # Upscale
 @_time
@@ -277,13 +286,11 @@ def predict(model, filename, downsample, scale):
 
 
     # -------------------Upscale using Bicubic ---------------------
-    starttime_BC = time.process_time()
+    starttime_BC = time.time() 
     bcImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_CUBIC)
     saveFileName = '%s/%s_%s%d_bcImage.png' % (outputDir, basename, downsampleIndicator, scale)
-    xprint("Time to upscale to Bi-Cubic = %f" % (time.process_time() - starttime_BC))
-    #skimage.io.imsave(saveFileName, bcImage)
-    print("Before shape")
-    print(numpy.shape(bcImage))
+    xprint("Time to upscale to Bi-Cubic = %f" % (time.time()  - starttime_BC))
+    # skimage.io.imsave(saveFileName, bcImage)
 
     if downsample:
         # ------------------- Upsample using nearest neighbour interpolation ---------------------
@@ -307,14 +314,14 @@ def predict(model, filename, downsample, scale):
     # Scan across in patches to reconstruct the full image
     r = 0
     outImage = numpy.zeros((outRows, outCols))
-    CNNTime = time.process_time()
+    CNNTime = time.time() 
 
     # Numpy Version
     patch_image = breakiamge_toPatches(bcImage, (128,128))
 
 
     # tensorflow version
-    patch_test = extract_patches(bcImage)
+    reconstruct_factor, patch_test = extract_patches(bcImage)
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
@@ -322,33 +329,31 @@ def predict(model, filename, downsample, scale):
         result = model.predict(
             # numpy.vstack(test_list), 
             patch_test,
+            # step=1,
             # batch_size=len(patch_image)
         )
 
     count = 0
     final_matrix = []
     inner = []
-    test_num = 17
     for i in result:
-        if count < test_num:
+        if count < reconstruct_factor:
             inner.append(numpy.squeeze(i, axis=2))
             count += 1
-            if count >= test_num:
+            if count >= reconstruct_factor:
                 final_matrix.append(inner.copy())
                 inner = []
                 count = 0
         
     final_image = numpy.array(final_matrix)
-    print(numpy.shape(final_matrix))
     numrows, numcols, height, width = numpy.shape(final_matrix)
     final_image = final_image.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
-    print(numpy.shape(final_image))
 
     saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
-    xprint('Time to upscale using CNN = %f' % (time.process_time() - CNNTime))
-    skimage.io.imsave(saveFileName, final_image)
+    xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
+    # skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
     if downsample:
@@ -375,7 +380,7 @@ if __name__ == '__main__':
     xprint(delimiter)
 
     # load the imputs and the global variables such as model name and file name
-    startTimeX = time.process_time()
+    startTimeX = time.time() 
     xprint(delimiter)
     modelName, filename, downsample, scale = Load_inputs()
 
@@ -384,12 +389,12 @@ if __name__ == '__main__':
     model = load_model(modelName, compile=False)
     model.summary()
     xprint(delimiter)
-    xprint("Time to load model and set up upscaling parameters = %f" % (time.process_time() - startTimeX))
+    xprint("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
 
     # Upscale the image
     predict(model, filename, downsample, scale)
 
-    xprint('Total Time = %f' % (time.process_time() - startTimeX))
+    xprint('Total Time = %f' % (time.time()  - startTimeX))
     xprint(delimiterMajor)
 
     log.close()
