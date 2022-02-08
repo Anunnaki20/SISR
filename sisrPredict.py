@@ -30,7 +30,7 @@ import skimage.transform
 import skimage.color
 import cv2
 
-# keras.backend.set_learning_phase(0)
+keras.backend.set_learning_phase(0)
 
 #------------------------------------------------------------
 # Settings
@@ -68,8 +68,8 @@ local_device_protos = device_lib.list_local_devices()
 ([x.name for x in local_device_protos if x.device_type == 'GPU'], 
  [x.name for x in local_device_protos if x.device_type == 'CPU'])
 
-# sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
-tf.compat.v1.disable_eager_execution()
+sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
+# tf.compat.v1.disable_eager_execution()
 print(tf.executing_eagerly())
 
 # Make directories if necessary
@@ -82,9 +82,9 @@ log = open(outputDir + '/sisrPredict.log', 'a+')
 # Used to time fucntions
 def _time(f):
     def wrapper(*args):
-        start = time.time()
+        start = time.process_time()
         r = f(*args)
-        end = time.time()
+        end = time.process_time()
         print("%s timed %f" % (f.__name__, end-start) )
         return r
     return wrapper
@@ -208,8 +208,7 @@ def breakiamge_toPatches(image, patchshape):
                                 img_width // patch_width,
                                 patch_width)
     patch_array = patch_array.swapaxes(1,2)
-    print(numpy.shape(patch_array))
-
+    
     for i in patch_array:
         for j in i:
             temp = numpy.expand_dims(j, axis = -1)
@@ -219,7 +218,13 @@ def breakiamge_toPatches(image, patchshape):
 
     return patch_list
 
-
+@_time
+def extract_patches(image):
+    patch_size = [1,128,128,1]
+    image = numpy.expand_dims(image, axis = 0)
+    image = numpy.expand_dims(image, axis = -1)
+    patches =  tf.image.extract_patches(image ,patch_size, [1, 116,116, 1], [1, 1, 1, 1], 'VALID')
+    return tf.reshape(patches, [289,128,128,1])
 
 # Upscale
 @_time
@@ -273,7 +278,6 @@ def predict(model, filename, downsample, scale):
     # -------------------Upscale using Bicubic ---------------------
     starttime_BC = time.process_time()
     bcImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_CUBIC)
-    # bcImage = (bcImage - numpy.min(bcImage))/numpy.ptp(bcImage) # normalize to [0,1]
     saveFileName = '%s/%s_%s%d_bcImage.png' % (outputDir, basename, downsampleIndicator, scale)
     xprint("Time to upscale to Bi-Cubic = %f" % (time.process_time() - starttime_BC))
     #skimage.io.imsave(saveFileName, bcImage)
@@ -304,84 +308,46 @@ def predict(model, filename, downsample, scale):
     outImage = numpy.zeros((outRows, outCols))
     CNNTime = time.process_time()
 
+    # Numpy Version
     patch_image = breakiamge_toPatches(bcImage, (128,128))
+
+
+    # tensorflow version
+    patch_test = extract_patches(bcImage)
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
     with tf.device('/gpu:0'):
-        # while r < outRows:
-        #     if r + outPatchRows > outRows:
-        #         r = outRows - outPatchRows
-        #     c = 0
-        #     while c < outCols:
-        #         if c + outPatchCols > outCols:
-        #             c = outCols - outPatchCols
-        #         inPatch = bcImage[r:r + inPatchRows, c:c + inPatchCols]
-        #         inPatch = inPatch.reshape(1, inPatchRows, inPatchCols, 1)
         result = model.predict(
-            numpy.vstack(patch_image), 
-            batch_size=len(patch_image)
+            # numpy.vstack(test_list), 
+            patch_test,
+            # batch_size=len(patch_image)
         )
-            #     temp = result[0, :, : , 0]
-            #     print(numpy.shape(temp))
-            #     outImage[r:r + outPatchRows, c:c + outPatchCols] = result[0, :, : , 0]
-            #     c = c + outPatchCols
-            # r = r + outPatchRows
-
 
     count = 0
     final_matrix = []
     inner = []
+    test_num = 17
     for i in result:
-        if count < 16:
+        if count < test_num:
             inner.append(numpy.squeeze(i, axis=2))
             count += 1
-            if count >= 16:
+            if count >= test_num:
                 final_matrix.append(inner.copy())
                 inner = []
                 count = 0
         
-    final_matrix = numpy.array(final_matrix)
-    numrows, numcols, height, width = numpy.array(final_matrix).shape
-    final_matrix = final_matrix.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
-    skimage.io.imsave("TEST.png", final_matrix)
-    quit()
-
-    # Save the CNN image
-    # rows = numpy.zeros((1,1))
-    # cols = numpy.zeros((1,1))
-    # count = 0
-    
-    # for i in result:
-    #     patch = numpy.squeeze(i, axis=2) # remove the extra dimansion to make it (116,116)
-
-    #     # if rows is a zeros array set it to patch and move forward in the loop
-    #     if rows.sum() == 0:
-    #         rows = patch
-    #         continue
-    #     if count < 15:
-    #         rows = numpy.hstack((rows, patch)) # Connect all the patches on the same row together
-    #         count += 1
-        
-    #     if count == 15:
-    #         # if col is a zeros array copy rows to cols and create a new rows array
-    #         if cols.sum() == 0:
-    #             cols = numpy.copy(rows)
-    #             rows = numpy.zeros((1,1))
-    #         # Add the rows to the column and create a empty rows array
-    #         else:
-    #             cols = numpy.vstack((cols, rows))
-    #             rows = numpy.zeros((1,1))
-    #         count = 0
-
-    # final_image = cols
+    final_image = numpy.array(final_matrix)
+    print(numpy.shape(final_matrix))
+    numrows, numcols, height, width = numpy.shape(final_matrix)
+    final_image = final_image.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
     print(numpy.shape(final_image))
-    # skimage.io.imsave("TEST.png", final_image)
 
-    # saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
-    # outImage[outImage > 1] = 1
+    saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
+    final_image[final_image > 1] = 1
+    final_image[final_image < 0] = 0
     xprint('Time to upscale using CNN = %f' % (time.process_time() - CNNTime))
-    # skimage.io.imsave(saveFileName, final_image)
+    skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
     if downsample:
