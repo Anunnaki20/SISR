@@ -6,15 +6,12 @@
 #------------------------------------------------------------
 
 # All the imports we need
-from operator import gt
-import re
 import warnings
 import sys
 import time
 import numpy
 import os
 import datetime
-import multiprocessing as mp
 
 # Machine learning libraries
 import keras
@@ -29,6 +26,7 @@ import skimage.io
 import skimage.transform
 import skimage.color
 import cv2
+
 
 keras.backend.set_learning_phase(0)
 
@@ -232,7 +230,7 @@ def extract_patches(image):
     patch_size = [1,128,128,1]
     image = numpy.expand_dims(image, axis = 0)
     image = numpy.expand_dims(image, axis = -1)
-    patches =  tf.image.extract_patches(image ,patch_size, [1, 116,116, 1], [1, 1, 1, 1], 'VALID')
+    patches =  tf.image.extract_patches(image ,patch_size, [1, 116,116, 1], [1, 1, 1, 1], 'SAME')
     notneeded, row, col, notneeded2 = patches.shape
     return row, tf.reshape(patches, [row*col,128,128,1])
 
@@ -349,11 +347,16 @@ def predict(model, filename, downsample, scale):
     numrows, numcols, height, width = numpy.shape(final_matrix)
     final_image = final_image.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
 
+    # final_image = final_image[25:2063,25:2063]
+    print(numpy.shape(final_image))
+
+
+
     saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
     xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
-    # skimage.io.imsave(saveFileName, final_image)
+    skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
     if downsample:
