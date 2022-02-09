@@ -192,18 +192,6 @@ def DetermineComparisons(image1, image2):
     return numpy.array([[mse, psnr, ssim]])
 
 @_time
-def normalize_to_range(array, endpoint):
-    """Normalizes all of the data in a numpy array to [0, endpoint]
-
-    Args:
-        array (numpy): a numpy array
-        endpoint (float): the upper range of the normalized data
-    """
-    array = array.astype('float32') 
-    array *= (endpoint/array.max())
-    return array
-
-@_time
 def breakiamge_toPatches(image, patchshape):
 
     patch_list = []
@@ -231,7 +219,7 @@ def extract_patches(image):
     image = numpy.expand_dims(image, axis = 0)
     image = numpy.expand_dims(image, axis = -1)
     patches =  tf.image.extract_patches(image ,patch_size, [1, 116,116, 1], [1, 1, 1, 1], 'SAME')
-    notneeded, row, col, notneeded2 = patches.shape
+    _, row, col, _ = patches.shape
     return row, tf.reshape(patches, [row*col,128,128,1])
 
 # Upscale
@@ -245,9 +233,6 @@ def predict(model, filename, downsample, scale):
         downsample (bool): Determines if we are downscaling the image or not
         scale (int): The scale that we are upscaling too. Either 2 or 4
     """
-    count = 0
-    outPatchRows = inPatchRows - offset * 2
-    outPatchCols = inPatchCols - offset * 2
     nnList = numpy.empty((0,3))
     blList = numpy.empty((0,3))
     bcList = numpy.empty((0,3))
@@ -310,20 +295,15 @@ def predict(model, filename, downsample, scale):
 
 
     # Scan across in patches to reconstruct the full image
-    r = 0
     outImage = numpy.zeros((outRows, outCols))
     CNNTime = time.time() 
-
-    # Numpy Version
-    patch_image = breakiamge_toPatches(bcImage, (128,128))
-
 
     # tensorflow version
     reconstruct_factor, patch_test = extract_patches(bcImage)
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
-    with tf.device('/gpu:0'):
+    with tf.device('/cpu:0'):
         result = model.predict(
             # numpy.vstack(test_list), 
             patch_test,
@@ -331,6 +311,7 @@ def predict(model, filename, downsample, scale):
             # batch_size=len(patch_image)
         )
 
+    # Put the patches back in the proper order
     count = 0
     final_matrix = []
     inner = []
@@ -342,21 +323,24 @@ def predict(model, filename, downsample, scale):
                 final_matrix.append(inner.copy())
                 inner = []
                 count = 0
-        
+    
+    # Reconstruct the image
     final_image = numpy.array(final_matrix)
     numrows, numcols, height, width = numpy.shape(final_matrix)
     final_image = final_image.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
 
-    # final_image = final_image[25:2063,25:2063]
-    print(numpy.shape(final_image))
-
-
+    # Remove the black border
+    finalRowStart = (final_image.shape[0]-outRows)//2
+    finalColStart = (final_image.shape[1]-outCols)//2
+    finalRowEnd = int(final_image.shape[0] - finalRowStart)
+    finalColEnd = int(final_image.shape[1] - finalColStart)
+    final_image = final_image[finalRowStart:finalRowEnd,finalColStart:finalColEnd]
 
     saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
     xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
-    skimage.io.imsave(saveFileName, final_image)
+    # skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
     if downsample:
