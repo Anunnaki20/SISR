@@ -6,15 +6,12 @@
 #------------------------------------------------------------
 
 # All the imports we need
-from operator import gt
-import re
 import warnings
 import sys
 import time
 import numpy
 import os
 import datetime
-import multiprocessing as mp
 
 # Machine learning libraries
 import keras
@@ -30,7 +27,8 @@ import skimage.transform
 import skimage.color
 import cv2
 
-# keras.backend.set_learning_phase(0)
+
+keras.backend.set_learning_phase(0)
 
 #------------------------------------------------------------
 # Settings
@@ -68,9 +66,16 @@ local_device_protos = device_lib.list_local_devices()
 ([x.name for x in local_device_protos if x.device_type == 'GPU'], 
  [x.name for x in local_device_protos if x.device_type == 'CPU'])
 
-# sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
-tf.compat.v1.disable_eager_execution()
-print(tf.executing_eagerly())
+sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
+tf.config.optimizer.set_experimental_options(
+    {'debug_stripper': True,
+    'constant_folding': True,
+    'loop_optimization': True,
+    'scoped_allocator_optimization': True,
+    'arithmetic_optimization': True}
+)
+
+# tf.compat.v1.disable_eager_execution()
 
 # Make directories if necessary
 if not os.path.isdir(outputDir):
@@ -79,12 +84,14 @@ if not os.path.isdir(outputDir):
 # Open the loggin file
 log = open(outputDir + '/sisrPredict.log', 'a+')
 #------------------------------------------------------------
+
+
 # Used to time fucntions
 def _time(f):
     def wrapper(*args):
-        start = time.time()
+        start = time.time() 
         r = f(*args)
-        end = time.time()
+        end = time.time() 
         print("%s timed %f" % (f.__name__, end-start) )
         return r
     return wrapper
@@ -185,18 +192,6 @@ def DetermineComparisons(image1, image2):
     return numpy.array([[mse, psnr, ssim]])
 
 @_time
-def normalize_to_range(array, endpoint):
-    """Normalizes all of the data in a numpy array to [0, endpoint]
-
-    Args:
-        array (numpy): a numpy array
-        endpoint (float): the upper range of the normalized data
-    """
-    array = array.astype('float32') 
-    array *= (endpoint/array.max())
-    return array
-
-@_time
 def breakiamge_toPatches(image, patchshape):
 
     patch_list = []
@@ -208,8 +203,7 @@ def breakiamge_toPatches(image, patchshape):
                                 img_width // patch_width,
                                 patch_width)
     patch_array = patch_array.swapaxes(1,2)
-    print(numpy.shape(patch_array))
-
+    
     for i in patch_array:
         for j in i:
             temp = numpy.expand_dims(j, axis = -1)
@@ -219,7 +213,14 @@ def breakiamge_toPatches(image, patchshape):
 
     return patch_list
 
-
+@_time
+def extract_patches(image):
+    patch_size = [1,128,128,1]
+    image = numpy.expand_dims(image, axis = 0)
+    image = numpy.expand_dims(image, axis = -1)
+    patches =  tf.image.extract_patches(image ,patch_size, [1, 116,116, 1], [1, 1, 1, 1], 'SAME')
+    _, row, col, _ = patches.shape
+    return row, tf.reshape(patches, [row*col,128,128,1])
 
 # Upscale
 @_time
@@ -232,9 +233,6 @@ def predict(model, filename, downsample, scale):
         downsample (bool): Determines if we are downscaling the image or not
         scale (int): The scale that we are upscaling too. Either 2 or 4
     """
-    count = 0
-    outPatchRows = inPatchRows - offset * 2
-    outPatchCols = inPatchCols - offset * 2
     nnList = numpy.empty((0,3))
     blList = numpy.empty((0,3))
     bcList = numpy.empty((0,3))
@@ -271,14 +269,11 @@ def predict(model, filename, downsample, scale):
 
 
     # -------------------Upscale using Bicubic ---------------------
-    starttime_BC = time.process_time()
+    starttime_BC = time.time() 
     bcImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_CUBIC)
-    # bcImage = (bcImage - numpy.min(bcImage))/numpy.ptp(bcImage) # normalize to [0,1]
     saveFileName = '%s/%s_%s%d_bcImage.png' % (outputDir, basename, downsampleIndicator, scale)
-    xprint("Time to upscale to Bi-Cubic = %f" % (time.process_time() - starttime_BC))
-    #skimage.io.imsave(saveFileName, bcImage)
-    print("Before shape")
-    print(numpy.shape(bcImage))
+    xprint("Time to upscale to Bi-Cubic = %f" % (time.time()  - starttime_BC))
+    # skimage.io.imsave(saveFileName, bcImage)
 
     if downsample:
         # ------------------- Upsample using nearest neighbour interpolation ---------------------
@@ -300,87 +295,51 @@ def predict(model, filename, downsample, scale):
 
 
     # Scan across in patches to reconstruct the full image
-    r = 0
     outImage = numpy.zeros((outRows, outCols))
-    CNNTime = time.process_time()
+    CNNTime = time.time() 
 
-    patch_image = breakiamge_toPatches(bcImage, (128,128))
+    # tensorflow version
+    reconstruct_factor, patch_test = extract_patches(bcImage)
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
-    with tf.device('/gpu:0'):
-        # while r < outRows:
-        #     if r + outPatchRows > outRows:
-        #         r = outRows - outPatchRows
-        #     c = 0
-        #     while c < outCols:
-        #         if c + outPatchCols > outCols:
-        #             c = outCols - outPatchCols
-        #         inPatch = bcImage[r:r + inPatchRows, c:c + inPatchCols]
-        #         inPatch = inPatch.reshape(1, inPatchRows, inPatchCols, 1)
+    with tf.device('/cpu:0'):
         result = model.predict(
-            numpy.vstack(patch_image), 
-            batch_size=len(patch_image)
+            # numpy.vstack(test_list), 
+            patch_test,
+            # step=1,
+            # batch_size=len(patch_image)
         )
-            #     temp = result[0, :, : , 0]
-            #     print(numpy.shape(temp))
-            #     outImage[r:r + outPatchRows, c:c + outPatchCols] = result[0, :, : , 0]
-            #     c = c + outPatchCols
-            # r = r + outPatchRows
 
-
+    # Put the patches back in the proper order
     count = 0
     final_matrix = []
     inner = []
     for i in result:
-        if count < 16:
+        if count < reconstruct_factor:
             inner.append(numpy.squeeze(i, axis=2))
             count += 1
-            if count >= 16:
+            if count >= reconstruct_factor:
                 final_matrix.append(inner.copy())
                 inner = []
                 count = 0
-        
-    final_matrix = numpy.array(final_matrix)
-    numrows, numcols, height, width = numpy.array(final_matrix).shape
-    final_matrix = final_matrix.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
-    skimage.io.imsave("TEST.png", final_matrix)
-    quit()
-
-    # Save the CNN image
-    # rows = numpy.zeros((1,1))
-    # cols = numpy.zeros((1,1))
-    # count = 0
     
-    # for i in result:
-    #     patch = numpy.squeeze(i, axis=2) # remove the extra dimansion to make it (116,116)
+    # Reconstruct the image
+    final_image = numpy.array(final_matrix)
+    numrows, numcols, height, width = numpy.shape(final_matrix)
+    final_image = final_image.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
 
-    #     # if rows is a zeros array set it to patch and move forward in the loop
-    #     if rows.sum() == 0:
-    #         rows = patch
-    #         continue
-    #     if count < 15:
-    #         rows = numpy.hstack((rows, patch)) # Connect all the patches on the same row together
-    #         count += 1
-        
-    #     if count == 15:
-    #         # if col is a zeros array copy rows to cols and create a new rows array
-    #         if cols.sum() == 0:
-    #             cols = numpy.copy(rows)
-    #             rows = numpy.zeros((1,1))
-    #         # Add the rows to the column and create a empty rows array
-    #         else:
-    #             cols = numpy.vstack((cols, rows))
-    #             rows = numpy.zeros((1,1))
-    #         count = 0
+    # Remove the black border
+    finalRowStart = (final_image.shape[0]-outRows)//2
+    finalColStart = (final_image.shape[1]-outCols)//2
+    finalRowEnd = int(final_image.shape[0] - finalRowStart)
+    finalColEnd = int(final_image.shape[1] - finalColStart)
+    final_image = final_image[finalRowStart:finalRowEnd,finalColStart:finalColEnd]
 
-    # final_image = cols
-    print(numpy.shape(final_image))
-    # skimage.io.imsave("TEST.png", final_image)
-
-    # saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
-    # outImage[outImage > 1] = 1
-    xprint('Time to upscale using CNN = %f' % (time.process_time() - CNNTime))
+    saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
+    final_image[final_image > 1] = 1
+    final_image[final_image < 0] = 0
+    xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
     # skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
@@ -408,7 +367,7 @@ if __name__ == '__main__':
     xprint(delimiter)
 
     # load the imputs and the global variables such as model name and file name
-    startTimeX = time.process_time()
+    startTimeX = time.time() 
     xprint(delimiter)
     modelName, filename, downsample, scale = Load_inputs()
 
@@ -417,12 +376,12 @@ if __name__ == '__main__':
     model = load_model(modelName, compile=False)
     model.summary()
     xprint(delimiter)
-    xprint("Time to load model and set up upscaling parameters = %f" % (time.process_time() - startTimeX))
+    xprint("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
 
     # Upscale the image
     predict(model, filename, downsample, scale)
 
-    xprint('Total Time = %f' % (time.process_time() - startTimeX))
+    xprint('Total Time = %f' % (time.time()  - startTimeX))
     xprint(delimiterMajor)
 
     log.close()
