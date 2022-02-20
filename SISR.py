@@ -3,10 +3,12 @@ from flask import Flask
 from flask import request, redirect, Response
 from flask import jsonify
 
+import json
 import cv2
 import os
 import io
 import PIL.Image as Image
+import base64
 
 # Tensorflow libraries
 # import tensorflow as tf
@@ -31,15 +33,48 @@ def test():
     if request.method == 'POST':
 
         r = request
-        # convert string of image data to uint8
+        # info = request.get_json()
+        # print(jsonify(info.model))
+        # print(json.loads(info)["model"])
+        # print(r.json()["model"])
+        # print(r.data["model"])
+        # print(r.data["scaleAmount"])
+        # data = json.loads(r.data)
+        # print(r.json)
+        # stuff = json.loads(r.text)
+        # print(stuff["scaleAmount"])
+
+        # print(str(r.data))
+
+        scale = r.json['scaleAmount']
+        model = r.json['model']
+        print("Scale:", scale, ", Model:", model)
+        # data = r.data['image']
+
+        # nparr = np.frombuffer(arr, np.uint8)
+        # img = base64.b64decode(arr)
+        # nparr = np.frombuffer(img, np.uint8)
+        # nparr = np.asarray(arr)
+        
+        # data = base64.b64decode(arr)
+        # print(str(scale), str(model))
+        # print(data["model"])
+        # print()
+        # print(data["scaleAmount"])
         nparr = np.frombuffer(r.data, np.uint8)
+
+        # convert string of image data to uint8
+        # nparr = np.frombuffer(r.data, np.uint8)
+        # print(r.data)
+        # print()
+        # print(r.headers)
         # decode image
         img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE) #IMREAD_GRAYSCALE #IMREAD_COLOR
         # Now we can do whatever we want with this decoded image ...
 
         # new_img = cv2.imread("testimage.png", cv2.IMREAD_GRAYSCALE)
         # # Displaying the image
-        # cv2.imshow('image', img)
+        # cv2.imshow('image', arr)
 
         ############## Save the image as a png ##############
         # cv2.imwrite("testimage.png", img)
