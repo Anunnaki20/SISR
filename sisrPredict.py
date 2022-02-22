@@ -12,6 +12,7 @@ import time
 import numpy
 import os
 import datetime
+from zipfile import ZipFile
 
 # Machine learning libraries
 import keras
@@ -26,7 +27,6 @@ import skimage.io
 import skimage.transform
 import skimage.color
 import cv2
-
 
 keras.backend.set_learning_phase(0)
 
@@ -81,6 +81,9 @@ tf.config.optimizer.set_experimental_options(
 if not os.path.isdir(outputDir):
     os.mkdir(outputDir)
 
+if not os.path.isdir("ExtractedFiles"):
+    os.mkdir("ExtractedFiles")
+
 # Open the loggin file
 log = open(outputDir + '/sisrPredict.log', 'a+')
 #------------------------------------------------------------
@@ -120,10 +123,10 @@ def Load_inputs():
     """
 
     # If not enough arguments are given. Print what it should be then quit
-    if len(sys.argv) < 4:
-        xprint('Usage: python sisrPredict.py <input_image> -s <2|4> [-d]')
-        xprint(delimiterMajor)
-        quit()
+    # if len(sys.argv) < 4:
+    #     xprint('Usage: python sisrPredict.py <input_image> -s <2|4> [-d]')
+    #     xprint(delimiterMajor)
+    #     quit()
         
     # if the file is not found quit
     filename = sys.argv[1]
@@ -172,6 +175,29 @@ def Load_inputs():
 
     return modelName, filename, downsample, scale
     
+
+# Return a list containing all image files in the zip folder
+def extractFromZip(zipfile):
+    
+    allFiles  = []
+    # opening the zip file in READ mode
+    with ZipFile(zipfile, 'r') as zip: 
+        #print("Current working directory: {0}".format(os.getcwd()))
+        os.chdir('./extractedFiles')
+        # extracting all the files
+        print('Extracting all the files now...')
+        allFiles = zip.namelist()
+        zip.extractall()
+        print('Done!')
+
+    return allFiles
+    # # writing files to a zipfile
+    # with ZipFile('upscaled_images.zip','w') as zip:
+    #     # writing each file one by one
+    #     for file in allFiles:
+    #         zip.write(file)
+
+
 
 # Helper functions
 @_time
@@ -224,7 +250,7 @@ def extract_patches(image):
 
 # Upscale
 @_time
-def predict(model, filename, downsample, scale):
+def predict(model, filename, basename, downsample, scale):
     """Using the CNN to upscale the image
 
     Args:
@@ -238,30 +264,31 @@ def predict(model, filename, downsample, scale):
     bcList = numpy.empty((0,3))
     reconList = numpy.empty((0,3))
 
-    xprint('Processing file "%s"...' % (filename))
-    (basename, ext) = os.path.splitext(filename)
+    #xprint('Processing file "%s"...' % (filename))
+    #(basename, ext) = os.path.splitext(filename)
 
     # Open the image and covnert it to grayscale and 12-bit and save it
-    gtImage = skimage.io.imread(filename)
-    gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(gtImage))) & 0xFFF0
+    # gtImage = skimage.io.imread(filename)
+    gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(filename))) & 0xFFF0
     gtImage = skimage.img_as_float(gtImage)
-
+    
     # saveFileName = '%s/%s_gtImage.png' % (outputDir, basename)
     #skimage.io.imsave(saveFileName, gtImage)
 
     smallImage = gtImage
     downsampleIndicator = 'x'
-
+    
     # Downsample image for CNN comparison if enabled
-    if downsample:
+    if downsample=="True":
         # Generate "low resolution" image 
         smallImage = skimage.transform.downscale_local_mean(gtImage, (scale, scale))
         downsampleIndicator = ''
         saveFileName = '%s/%s_%s%d_downSample.png' % (outputDir, basename, downsampleIndicator, scale)
-        skimage.io.imsave(saveFileName, smallImage)
+        #skimage.io.imsave(saveFileName, smallImage)
     
 
     # Create variabels for image reconstruction
+    
     inRows = smallImage.shape[0] * scale
     inCols = smallImage.shape[1] * scale
     outRows = inRows - offset * 2
@@ -275,7 +302,7 @@ def predict(model, filename, downsample, scale):
     xprint("Time to upscale to Bi-Cubic = %f" % (time.time()  - starttime_BC))
     # skimage.io.imsave(saveFileName, bcImage)
 
-    if downsample:
+    if downsample=="True":
         # ------------------- Upsample using nearest neighbour interpolation ---------------------
         nnImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_NEAREST)
         saveFileName = '%s/%s_%s%d_nnImage.png' % (outputDir, basename, downsampleIndicator, scale)
@@ -340,10 +367,10 @@ def predict(model, filename, downsample, scale):
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
     xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
-    # skimage.io.imsave(saveFileName, final_image)
+    skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
-    if downsample:
+    if downsample=="True":
         reconList = numpy.append(reconList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], outImage), axis=0)
         xprint('     NearNeighour    Bi-Linear     Bi-Cubic  Reconstruct   Difference')
         xprint('MSE  %12.6f %12.6f %12.6f %12.6f %12.6f' % 
@@ -352,9 +379,6 @@ def predict(model, filename, downsample, scale):
         (nnList[count-1,1], blList[count-1,1], bcList[count-1,1], reconList[count-1,1], reconList[count-1,1] - bcList[count-1,1]))
         xprint('SSIM %12.6f %12.6f %12.6f %12.6f %12.6f' % 
         (nnList[count-1,2], blList[count-1,2], bcList[count-1,2], reconList[count-1,2], reconList[count-1,2] - bcList[count-1,2]))
-    
-
-
 
 if __name__ == '__main__':
 

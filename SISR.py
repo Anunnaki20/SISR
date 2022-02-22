@@ -1,15 +1,22 @@
 # Web Framework
 from email.mime import base
+import io
 from flask import Flask
 from flask import request, redirect, Response
 from flask import jsonify
 
-
+import time
 import cv2
 import os
 import PIL.Image as Image
 import zipfile
 import shutil
+import base64
+
+# Machine learning libraries
+from keras.models import load_model
+
+import sisrPredict
 
 # Tensorflow libraries
 # import tensorflow as tf
@@ -36,12 +43,13 @@ def test():
         r = request
 
         parameters = r.args
-        # print(r.args)
         filetype = parameters['type']
         scale = parameters['scaleAmount']
-        model = parameters['model']
+        modelName = "models/" + parameters['model']
         qualityMeasure = parameters['qualityMeasure']
-        print("File Type:", filetype, ", Scale:", scale, ", Model:", model, ", Quality Measure?:", qualityMeasure)
+        fileName = parameters['filename']
+
+        print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)
 
         if filetype == "zip":
             zip_result = open('./uploadedFile/testzip.zip', 'wb')
@@ -62,21 +70,31 @@ def test():
 
         else: #filetype == "single_image"
             # convert string of image data to uint8
-            nparr = np.frombuffer(r.data, np.uint8)
-            # decode image
-            img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE) #IMREAD_GRAYSCALE #IMREAD_COLOR
+            #nparr = np.frombuffer(r.data, np.uint8)
             
-            response = {'message': 'image received. size={}x{}'.format(img.shape[1], img.shape[0])
-                    }
-            print(response)
+            imgdata = base64.b64decode(r.data)
+            img = Image.open(io.BytesIO(imgdata))
+            img = np.asarray(img)
+
+            # decode image
+            #img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE) #IMREAD_GRAYSCALE #IMREAD_COLOR
+            
+            #response = {'message': 'image received. size={}x{}'.format(img.shape[1], img.shape[0])}
 
             ############## Save the image as a png ##############
-            cv2.imwrite("./uploadedFile/decodedimage.png", img)
+            #cv2.imwrite("./uploadedFile/decodedimage.png", img)
 
             ###################################
             # Upscale the image in the folder #
             ###################################
+            # Load CNN
+            startTimeX = time.time() 
+            model = load_model(modelName, compile=False)
+            model.summary()
+            print("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
 
+            # Upscale the image
+            sisrPredict.predict(model, img, fileName, qualityMeasure, int(scale))
 
         ########################
         # Zip the single image #
@@ -101,6 +119,7 @@ def test():
         ######################################################################################################################################################
 
         return jsonify(f"Hey! {data}")
+        #return filetype, scale, model, qualityMeasure, img
 
     # otherwise handle the GET request
     else:
