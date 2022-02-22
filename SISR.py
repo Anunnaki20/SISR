@@ -1,10 +1,13 @@
 # Web Framework
 from email.mime import base
 import io
+import itertools
+from pathlib import Path
 from flask import Flask
 from flask import request, redirect, Response
 from flask import jsonify
 
+import tensorflow as tf
 import time
 import cv2
 import os
@@ -12,6 +15,8 @@ import PIL.Image as Image
 import zipfile
 import shutil
 import base64
+import skimage.io
+from multiprocessing.dummy import Pool as ThreadPool
 
 # Machine learning libraries
 from keras.models import load_model
@@ -23,7 +28,9 @@ import sisrPredict
 # from tensorflow import keras
 
 # Helper libraries
+import sys
 import numpy as np
+np.set_printoptions(threshold=sys.maxsize)
 # import matplotlib.pyplot as plt
 # import os
 # import subprocess
@@ -36,7 +43,9 @@ app = Flask(__name__)
 
 # Base URL
 @app.route('/', methods=['GET', 'POST'])
+
 def test():
+
     # handle the POST request
     if request.method == 'POST':
 
@@ -47,22 +56,46 @@ def test():
         scale = parameters['scaleAmount']
         modelName = "models/" + parameters['model']
         qualityMeasure = parameters['qualityMeasure']
-        fileName = parameters['filename']
 
-        print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)
+        zippedFiles = []
 
         if filetype == "zip":
-            zip_result = open('./uploadedFile/testzip.zip', 'wb')
-            zip_result.write(r.data)
+
+            print("File Type:", filetype, ", Scale:",  scale, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)  
 
             ######################################################
-            # unzip the file and check image size for each image #
+            # store the zipped folder #
             ######################################################
-            file_url = "/uploadedFile/testzip.zip"
+            zipPath = "./uploadedFile/uploaded.zip"
+            with open(zipPath, 'wb') as zipFile:
+                zipFile.write(r.data)
+            
             # extract the images from the zip
-            with zipfile.ZipFile("."+file_url, 'r') as zip_ref:
+            with zipfile.ZipFile(zipPath, 'r') as zip_ref:
+                zippedFiles = zip_ref.namelist()
                 zip_ref.extractall("./uploadedFile/extractedImages")
 
+
+            zippedFilesPath = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
+            # Load CNN
+            startTimeX = time.time() 
+
+            # Upscale the image    
+            gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
+
+            # Chad Multithreading = (took me 28s for 8 files each x4 upscale)
+            pool = ThreadPool(16)
+            pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale))))
+
+            # Virgin for loop = (took me 60s for 8 files each x4 upscale)
+            # zippedFiles = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
+            # for file in zippedFiles:
+            #     basename = Path(file).stem
+            #     gtImage = skimage.io.imread(file)
+            #     upScaleImage(modelName, basename, gtImage, qualityMeasure, int(scale))
+                   
+            shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
+            print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
             ####################################
             # Upscale each image in the folder #
             ####################################
@@ -71,7 +104,8 @@ def test():
         else: #filetype == "single_image"
             # convert string of image data to uint8
             #nparr = np.frombuffer(r.data, np.uint8)
-            
+            fileName = parameters['filename']
+            print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
             imgdata = base64.b64decode(r.data)
             img = Image.open(io.BytesIO(imgdata))
             img = np.asarray(img)
@@ -88,28 +122,23 @@ def test():
             # Upscale the image in the folder #
             ###################################
             # Load CNN
-            startTimeX = time.time() 
-            model = load_model(modelName, compile=False)
-            model.summary()
-            print("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
-
+            startTimeX = time.time()
+            
             # Upscale the image
-            sisrPredict.predict(model, img, fileName, qualityMeasure, int(scale))
+            upScaleImage(modelName, fileName, img, qualityMeasure, int(scale))
+            print("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
 
         ########################
         # Zip the single image #
         ########################
-        shutil.make_archive("./upscaledImages/upscaled", 'zip', "./uploadedFile/extractedImages")
-        file_url = "/upscaledImages/upscaled.zip"
+        
+        #file_url = "/upscaledImages/upscaled.zip"
 
         ################################
         # Send the zip back to website #
         ################################
+        ##########################
 
-        ##########################
-        # Delete all saved files #
-        ##########################
-        cleanDirectories()
 
         # This is just a dummy variable
         data = "Nothing"
@@ -117,13 +146,24 @@ def test():
         ######################################################################################################################################################
         ######################################################################################################################################################
         ######################################################################################################################################################
-
+       
+        # Delete all saved files #
+        ##########################
+        cleanDirectories()
+        
         return jsonify(f"Hey! {data}")
         #return filetype, scale, model, qualityMeasure, img
 
     # otherwise handle the GET request
     else:
         return jsonify(f"Hey!")
+
+def upScaleImage(modelName, filename, img, qualityMeasure, scale):
+    # Load CNN
+    model = load_model(modelName, compile=False)
+    #model.summary()
+    # Upscale the image
+    sisrPredict.predict(model, filename, img, qualityMeasure, scale)   
 
 # Remove/delete the files in the images and extractedImages folders
 def cleanDirectories():
@@ -166,6 +206,9 @@ def cleanDirectories():
                 os.remove("./upscaledImages/"+file_in_upscaled)
             except OSError as e:
                 print("Error: %s : %s" % ("./upscaledImages/"+file_in_upscaled, e.strerror))
+
+    if os.path.exists("./upscaledZip.zip"):
+        os.remove("./upscaledZip.zip")
 
 # Run the server on the local host
 if __name__ == '__main__':

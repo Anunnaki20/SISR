@@ -6,6 +6,7 @@
 #------------------------------------------------------------
 
 # All the imports we need
+from pathlib import Path
 import warnings
 import sys
 import time
@@ -43,7 +44,7 @@ warnings.warn = warn
 inPatchRows = 128
 inPatchCols = 128
 modelDir = 'models'
-outputDir = 'output'
+outputDir = 'upscaledImages'
 
 n1 = 64
 n2 = 32
@@ -114,7 +115,7 @@ def xprint(string):
     return
 
 # Get input 
-@_time
+#@_time
 def Load_inputs():
     """Reads the system args to determine the input file, scale amount, and either upscale or downscale
 
@@ -200,7 +201,7 @@ def extractFromZip(zipfile):
 
 
 # Helper functions
-@_time
+#@_time
 def DetermineComparisons(image1, image2):
     
     """Compares 2 images together using Mean squared error, Peak signal to noise ratio, and structural similarity
@@ -217,7 +218,7 @@ def DetermineComparisons(image1, image2):
     ssim = skimage.metrics.structural_similarity(image1, image2)
     return numpy.array([[mse, psnr, ssim]])
 
-@_time
+#@_time
 def breakiamge_toPatches(image, patchshape):
 
     patch_list = []
@@ -239,7 +240,7 @@ def breakiamge_toPatches(image, patchshape):
 
     return patch_list
 
-@_time
+#@_time
 def extract_patches(image):
     patch_size = [1,128,128,1]
     image = numpy.expand_dims(image, axis = 0)
@@ -249,8 +250,8 @@ def extract_patches(image):
     return row, tf.reshape(patches, [row*col,128,128,1])
 
 # Upscale
-@_time
-def predict(model, filename, basename, downsample, scale):
+#@_time
+def predict(model, filename, img, downsample, scale):
     """Using the CNN to upscale the image
 
     Args:
@@ -264,14 +265,14 @@ def predict(model, filename, basename, downsample, scale):
     bcList = numpy.empty((0,3))
     reconList = numpy.empty((0,3))
 
+    #print(filename)
     #xprint('Processing file "%s"...' % (filename))
     #(basename, ext) = os.path.splitext(filename)
 
     # Open the image and covnert it to grayscale and 12-bit and save it
-    # gtImage = skimage.io.imread(filename)
-    gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(filename))) & 0xFFF0
+    #gtImage = skimage.io.imread(filename)
+    gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(img))) & 0xFFF0
     gtImage = skimage.img_as_float(gtImage)
-    
     # saveFileName = '%s/%s_gtImage.png' % (outputDir, basename)
     #skimage.io.imsave(saveFileName, gtImage)
 
@@ -283,7 +284,7 @@ def predict(model, filename, basename, downsample, scale):
         # Generate "low resolution" image 
         smallImage = skimage.transform.downscale_local_mean(gtImage, (scale, scale))
         downsampleIndicator = ''
-        saveFileName = '%s/%s_%s%d_downSample.png' % (outputDir, basename, downsampleIndicator, scale)
+        saveFileName = '%s/%s_%s%d_downSample.png' % (outputDir, filename, downsampleIndicator, scale)
         #skimage.io.imsave(saveFileName, smallImage)
     
 
@@ -291,27 +292,28 @@ def predict(model, filename, basename, downsample, scale):
     
     inRows = smallImage.shape[0] * scale
     inCols = smallImage.shape[1] * scale
+    
     outRows = inRows - offset * 2
     outCols = inCols - offset * 2
-
+    
 
     # -------------------Upscale using Bicubic ---------------------
     starttime_BC = time.time() 
     bcImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_CUBIC)
-    saveFileName = '%s/%s_%s%d_bcImage.png' % (outputDir, basename, downsampleIndicator, scale)
+    saveFileName = '%s/%s_%s%d_bcImage.png' % (outputDir, filename, downsampleIndicator, scale)
     xprint("Time to upscale to Bi-Cubic = %f" % (time.time()  - starttime_BC))
     # skimage.io.imsave(saveFileName, bcImage)
 
     if downsample=="True":
         # ------------------- Upsample using nearest neighbour interpolation ---------------------
         nnImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_NEAREST)
-        saveFileName = '%s/%s_%s%d_nnImage.png' % (outputDir, basename, downsampleIndicator, scale)
+        saveFileName = '%s/%s_%s%d_nnImage.png' % (outputDir, filename, downsampleIndicator, scale)
         #skimage.io.imsave(saveFileName, nnImage)
         nnList = numpy.append(nnList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], nnImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
         # ------------------------------------------------------------------------------------
 
         # ------------------- Upsample using bilinear interpolation ---------------------
-        saveFileName = '%s/%s_%s%d_blImage.png' % (outputDir, basename, downsampleIndicator, scale)
+        saveFileName = '%s/%s_%s%d_blImage.png' % (outputDir, filename, downsampleIndicator, scale)
         blImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_LINEAR)
         #skimage.io.imsave(saveFileName, blImage)
         blList = numpy.append(blList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], blImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
@@ -323,7 +325,7 @@ def predict(model, filename, basename, downsample, scale):
 
     # Scan across in patches to reconstruct the full image
     outImage = numpy.zeros((outRows, outCols))
-    CNNTime = time.time() 
+    #CNNTime = time.time() 
 
     # tensorflow version
     reconstruct_factor, patch_test = extract_patches(bcImage)
@@ -334,7 +336,8 @@ def predict(model, filename, basename, downsample, scale):
         result = model.predict(
             # numpy.vstack(test_list), 
             patch_test,
-            # step=1,
+            #verbose = 1,
+            # steps = 1,
             # batch_size=len(patch_image)
         )
 
@@ -363,15 +366,16 @@ def predict(model, filename, basename, downsample, scale):
     finalColEnd = int(final_image.shape[1] - finalColStart)
     final_image = final_image[finalRowStart:finalRowEnd,finalColStart:finalColEnd]
 
-    saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
+    saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, filename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
-    xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
+    #xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
+    
     skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
     if downsample=="True":
-        reconList = numpy.append(reconList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], outImage), axis=0)
+        reconList = numpy.append(reconList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], final_image.reshape(final_image.shape[0],final_image.shape[1])), axis=0)
         xprint('     NearNeighour    Bi-Linear     Bi-Cubic  Reconstruct   Difference')
         xprint('MSE  %12.6f %12.6f %12.6f %12.6f %12.6f' % 
         (nnList[count-1,0], blList[count-1,0], bcList[count-1,0], reconList[count-1,0], reconList[count-1,0] - bcList[count-1,0]))
