@@ -7,6 +7,7 @@ from flask import Flask
 from flask import request, redirect, Response
 from flask import jsonify
 
+import requests
 import tensorflow as tf
 import time
 import cv2
@@ -79,13 +80,15 @@ def test():
             # Load CNN
             startTimeX = time.time() 
 
-            # Upscale the image    
+            ####################################
+            # Upscale each image in the folder #
+            ####################################  
             gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
 
             # Chad Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
             pool = ThreadPool(os.cpu_count())
             print(os.cpu_count())
-            pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale))))
+            pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(filetype)))
 
             # Virgin for loop = (took me 50s-60s for 8 files, 192s for 32 files, each x4 upscale)
             # zippedFiles = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
@@ -96,10 +99,6 @@ def test():
                    
             shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
             print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
-            ####################################
-            # Upscale each image in the folder #
-            ####################################
-
 
         else: #filetype == "single_image"
             # convert string of image data to uint8
@@ -125,8 +124,9 @@ def test():
             startTimeX = time.time()
             
             # Upscale the image
-            upScaleImage(modelName, fileName, img, qualityMeasure, int(scale))
+            upScaleImage(modelName, fileName, img, qualityMeasure, int(scale), filetype)
             print("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
+
 
         ########################
         # Zip the single image #
@@ -158,12 +158,23 @@ def test():
     else:
         return jsonify(f"Hey!")
 
-def upScaleImage(modelName, filename, img, qualityMeasure, scale):
+# def sendUpscaledZip():
+#     #content_type = 'application/zip'
+#     #headers = {'content-type': content_type}
+
+#     # Send the zipped folder to the user
+#     fsock = open('upscaledZip.zip', 'rb')
+
+#     payload = {'type': 'zip'}
+#     req = requests.post('http://host.docker.internal:8080/', data=fsock, params=payload)
+#     print(req.text)
+
+def upScaleImage(modelName, filename, img, qualityMeasure, scale, filetype):
     # Load CNN
     model = load_model(modelName, compile=False)
     #model.summary()
     # Upscale the image
-    sisrPredict.predict(model, filename, img, qualityMeasure, scale)   
+    sisrPredict.predict(model, filename, img, qualityMeasure, scale, filetype)   
 
 # Remove/delete the files in the images and extractedImages folders
 def cleanDirectories():
