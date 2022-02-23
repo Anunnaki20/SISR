@@ -30,7 +30,6 @@ import sisrPredict
 # Helper libraries
 import sys
 import numpy as np
-np.set_printoptions(threshold=sys.maxsize)
 # import matplotlib.pyplot as plt
 # import os
 # import subprocess
@@ -83,11 +82,12 @@ def test():
             # Upscale the image    
             gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
 
-            # Chad Multithreading = (took me 28s for 8 files each x4 upscale)
-            pool = ThreadPool(16)
+            # Chad Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
+            pool = ThreadPool(os.cpu_count())
+            print(os.cpu_count())
             pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale))))
 
-            # Virgin for loop = (took me 60s for 8 files each x4 upscale)
+            # Virgin for loop = (took me 50s-60s for 8 files, 192s for 32 files, each x4 upscale)
             # zippedFiles = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
             # for file in zippedFiles:
             #     basename = Path(file).stem

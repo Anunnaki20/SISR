@@ -332,7 +332,7 @@ def predict(model, filename, img, downsample, scale):
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
-    with tf.device('/cpu:0'):
+    with tf.device('/gpu:0'):
         result = model.predict(
             # numpy.vstack(test_list), 
             patch_test,
