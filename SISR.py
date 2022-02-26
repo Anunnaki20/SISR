@@ -4,8 +4,8 @@ import io
 import itertools
 from pathlib import Path
 from flask import Flask
-from flask import request, redirect, Response
-from flask import jsonify
+from flask import request, redirect, Response, make_response
+from flask import jsonify, send_file
 
 import requests
 import tensorflow as tf
@@ -32,7 +32,6 @@ import sisrPredict
 import sys
 import numpy as np
 # import matplotlib.pyplot as plt
-# import os
 # import subprocess
 
 # print('TensorFlow version: {}'.format(tf.__version__))
@@ -87,7 +86,6 @@ def test():
 
             # Chad Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
             pool = ThreadPool(os.cpu_count())
-            print(os.cpu_count())
             pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(filetype)))
 
             # Virgin for loop = (took me 50s-60s for 8 files, 192s for 32 files, each x4 upscale)
@@ -99,6 +97,7 @@ def test():
                    
             shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
             print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
+
 
         else: #filetype == "single_image"
             # convert string of image data to uint8
@@ -149,7 +148,7 @@ def test():
        
         # Delete all saved files #
         ##########################
-        cleanDirectories()
+        #cleanDirectories()
         
         return jsonify(f"Hey! {data}")
         #return filetype, scale, model, qualityMeasure, img
@@ -158,16 +157,6 @@ def test():
     else:
         return jsonify(f"Hey!")
 
-# def sendUpscaledZip():
-#     #content_type = 'application/zip'
-#     #headers = {'content-type': content_type}
-
-#     # Send the zipped folder to the user
-#     fsock = open('upscaledZip.zip', 'rb')
-
-#     payload = {'type': 'zip'}
-#     req = requests.post('http://host.docker.internal:8080/', data=fsock, params=payload)
-#     print(req.text)
 
 def upScaleImage(modelName, filename, img, qualityMeasure, scale, filetype):
     # Load CNN
@@ -176,6 +165,50 @@ def upScaleImage(modelName, filename, img, qualityMeasure, scale, filetype):
     # Upscale the image
     sisrPredict.predict(model, filename, img, qualityMeasure, scale, filetype)   
 
+# Send upscaled image to download
+@app.route('/downloadImage')
+def sendImage():
+    for file in os.listdir("./upscaledImages"):
+        if file.endswith(".png"):
+            try:
+                return send_file('./upscaledImages/'+file, as_attachment=True)
+            except Exception as e:
+                return str(e)
+
+# Send upscaled zip folder to download
+@app.route('/downloadZip', methods=['GET','POST'])
+def sendZip():
+    
+    ### Check the already created upscaled zip folder and then create a new zipFile object on memory ###
+    FILEPATH = "./upscaledZip.zip"
+    fileobj = io.BytesIO()
+    with zipfile.ZipFile(fileobj, 'w') as zip_file:
+        zip_info = zipfile.ZipInfo(FILEPATH)
+        zip_info.date_time = time.localtime(time.time())[:6]
+        zip_info.compress_type = zipfile.ZIP_DEFLATED
+        with open(FILEPATH, 'rb') as fd:
+            zip_file.writestr(zip_info, fd.read())
+    fileobj.seek(0)
+
+    """response = make_response(fileobj.read())
+    response.headers.set('Content-Type', 'zip')
+    response.headers.set('Content-Disposition', 'attachment', filename='upscaledZip.zip')
+    return response""" # This allows zip to be downloaded in user machine
+
+    with open("./upscaledZip.zip", 'rb') as f:
+        data = f.readlines()
+    # os.remove("./upscaledZip.zip")
+    return Response(data, 
+        headers={
+        'Content-Type': 'application/zip',
+        'Content-Disposition':'attachment;filename=upscaledZip.zip'
+    })
+    #return send_file(fileobj.read(), mimetype='zip', as_attachment=True, attachment_filename = '%s' % os.path.basename(FILEPATH))
+
+
+
+
+#@app.route("/")
 # Remove/delete the files in the images and extractedImages folders
 def cleanDirectories():
     ####################################
@@ -219,7 +252,7 @@ def cleanDirectories():
                 print("Error: %s : %s" % ("./upscaledImages/"+file_in_upscaled, e.strerror))
 
     if os.path.exists("./upscaledZip.zip"):
-        os.remove("./upscaledZip.zip")
+         os.remove("./upscaledZip.zip")
 
 # Run the server on the local host
 if __name__ == '__main__':

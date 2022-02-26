@@ -377,6 +377,7 @@ def predict(model, filename, img, downsample, scale, filetype):
     finalColEnd = int(final_image.shape[1] - finalColStart)
     final_image = final_image[finalRowStart:finalRowEnd,finalColStart:finalColEnd]
 
+    filename = Path(filename).stem
     saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, filename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
