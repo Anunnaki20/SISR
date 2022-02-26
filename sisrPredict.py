@@ -260,6 +260,19 @@ def predict(model, filename, img, downsample, scale):
         downsample (bool): Determines if we are downscaling the image or not
         scale (int): The scale that we are upscaling too. Either 2 or 4
     """
+
+    # Log the start info
+    xprint('')
+    xprint(delimiterMajor)
+    xprint('   Date: %s' % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    xprint(delimiter)
+    xprint('Parameters:')
+    xprint('    scale = %d' % (scale))
+    xprint('    downsample = %s' % (str(downsample)) )
+    xprint(delimiter)
+
+    startTimeX = time.time() 
+
     nnList = numpy.empty((0,3))
     blList = numpy.empty((0,3))
     bcList = numpy.empty((0,3))
@@ -289,10 +302,8 @@ def predict(model, filename, img, downsample, scale):
     
 
     # Create variabels for image reconstruction
-    
     inRows = smallImage.shape[0] * scale
     inCols = smallImage.shape[1] * scale
-    
     outRows = inRows - offset * 2
     outCols = inCols - offset * 2
     
@@ -325,7 +336,7 @@ def predict(model, filename, img, downsample, scale):
 
     # Scan across in patches to reconstruct the full image
     outImage = numpy.zeros((outRows, outCols))
-    #CNNTime = time.time() 
+    CNNTime = time.time() 
 
     # tensorflow version
     reconstruct_factor, patch_test = extract_patches(bcImage)
@@ -334,11 +345,7 @@ def predict(model, filename, img, downsample, scale):
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
     with tf.device('/gpu:0'):
         result = model.predict(
-            # numpy.vstack(test_list), 
             patch_test,
-            #verbose = 1,
-            # steps = 1,
-            # batch_size=len(patch_image)
         )
 
     # Put the patches back in the proper order
@@ -369,9 +376,11 @@ def predict(model, filename, img, downsample, scale):
     saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, filename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
-    #xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
+    xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
+    xprint('Total Time = %f' % (time.time()  - startTimeX))
+    xprint(delimiterMajor)
     
-    skimage.io.imsave(saveFileName, final_image)
+    # skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
     if downsample=="True":
@@ -383,6 +392,8 @@ def predict(model, filename, img, downsample, scale):
         (nnList[count-1,1], blList[count-1,1], bcList[count-1,1], reconList[count-1,1], reconList[count-1,1] - bcList[count-1,1]))
         xprint('SSIM %12.6f %12.6f %12.6f %12.6f %12.6f' % 
         (nnList[count-1,2], blList[count-1,2], bcList[count-1,2], reconList[count-1,2], reconList[count-1,2] - bcList[count-1,2]))
+
+
 
 if __name__ == '__main__':
 

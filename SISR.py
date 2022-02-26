@@ -42,7 +42,6 @@ app = Flask(__name__)
 
 # Base URL
 @app.route('/', methods=['GET', 'POST'])
-
 def test():
 
     # handle the POST request
@@ -126,7 +125,7 @@ def test():
             
             # Upscale the image
             upScaleImage(modelName, fileName, img, qualityMeasure, int(scale))
-            print("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
+            print("Total time to upscale = %f" % (time.time()  - startTimeX))
 
         ########################
         # Zip the single image #
@@ -149,7 +148,7 @@ def test():
        
         # Delete all saved files #
         ##########################
-        cleanDirectories()
+        # cleanDirectories()
         
         return jsonify(f"Hey! {data}")
         #return filetype, scale, model, qualityMeasure, img
