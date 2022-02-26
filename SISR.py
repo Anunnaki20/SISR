@@ -197,7 +197,9 @@ def sendZip():
 
     with open("./upscaledZip.zip", 'rb') as f:
         data = f.readlines()
-    # os.remove("./upscaledZip.zip")
+    
+    cleanDirectories()
+    
     return Response(data, 
         headers={
         'Content-Type': 'application/zip',
