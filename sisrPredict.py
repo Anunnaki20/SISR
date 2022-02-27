@@ -20,6 +20,8 @@ import keras
 from keras.models import load_model
 import tensorflow as tf
 from tensorflow.python.client import device_lib
+from tensorflow.python.compiler.tensorrt import trt_convert as trt
+
 
 # image manipulation libraries
 
@@ -44,29 +46,19 @@ warnings.warn = warn
 inPatchRows = 128
 inPatchCols = 128
 modelDir = 'models'
-outputDir = 'upscaledImages'
-
+outputDir = 'output'
 n1 = 64
 n2 = 32
 f1 = 9
 f2 = 1
 f3 = 5
 offset = int(f1/2) + int(f3/2)
-
 trainingPatches = 1024
-
 delimiterMajor = '============================================================'
 delimiter = '----------------------------------------------------------'
 
+
 os.environ["CUDA_VISIBLE_DEVICES"]="0"   
-
-# print(tf.__version__)
-# print('A: ', tf.test.is_built_with_cuda)
-# print('B: ', tf.test.gpu_device_name())
-local_device_protos = device_lib.list_local_devices()
-([x.name for x in local_device_protos if x.device_type == 'GPU'], 
- [x.name for x in local_device_protos if x.device_type == 'CPU'])
-
 sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
 tf.config.optimizer.set_experimental_options(
     {'debug_stripper': True,
@@ -76,7 +68,22 @@ tf.config.optimizer.set_experimental_options(
     'arithmetic_optimization': True}
 )
 
-# tf.compat.v1.disable_eager_execution()
+tf.keras.layers.LSTM(64, return_sequences=False, stateful=True, unroll=True)
+
+
+PRECISION = "FP16"
+from helper import ModelOptimizer # using the helper from NVIDIA
+
+# pre_model = tf.keras.models.load_model("models/model_4_t1024_e1000.h5")
+# pre_model.save("test_model")
+
+# model_dir = 'models/model_4_t1024_e1000.h5'
+opt_model = ModelOptimizer('testing_TensorRT/test_model')
+model_fp16 = opt_model.convert('testing_TensorRT/test_model'+'_FP16', precision=PRECISION)
+
+test_model = tf.keras.models.load_model("testing_TensorRT/test_model")
+
+
 
 # Make directories if necessary
 if not os.path.isdir(outputDir):
@@ -192,11 +199,6 @@ def extractFromZip(zipfile):
         print('Done!')
 
     return allFiles
-    # # writing files to a zipfile
-    # with ZipFile('upscaled_images.zip','w') as zip:
-    #     # writing each file one by one
-    #     for file in allFiles:
-    #         zip.write(file)
 
 
 
@@ -218,27 +220,6 @@ def DetermineComparisons(image1, image2):
     ssim = skimage.metrics.structural_similarity(image1, image2)
     return numpy.array([[mse, psnr, ssim]])
 
-#@_time
-def breakiamge_toPatches(image, patchshape):
-
-    patch_list = []
-    img_height, img_width = numpy.shape(image)
-    patch_height, patch_width = patchshape
-
-    patch_array = image.reshape(img_height // patch_height,
-                                patch_height,
-                                img_width // patch_width,
-                                patch_width)
-    patch_array = patch_array.swapaxes(1,2)
-    
-    for i in patch_array:
-        for j in i:
-            temp = numpy.expand_dims(j, axis = -1)
-            temp = numpy.expand_dims(temp, axis = 0)
-            patch_list.append(temp)
-
-
-    return patch_list
 
 #@_time
 def extract_patches(image):
@@ -249,9 +230,10 @@ def extract_patches(image):
     _, row, col, _ = patches.shape
     return row, tf.reshape(patches, [row*col,128,128,1])
 
+
 # Upscale
 #@_time
-def predict(model, filename, img, downsample, scale):
+def predict(model, filename, downsample, scale):
     """Using the CNN to upscale the image
 
     Args:
@@ -266,14 +248,14 @@ def predict(model, filename, img, downsample, scale):
     reconList = numpy.empty((0,3))
 
     #print(filename)
-    #xprint('Processing file "%s"...' % (filename))
-    #(basename, ext) = os.path.splitext(filename)
+    xprint('Processing file "%s"...' % (filename))
+    (basename, ext) = os.path.splitext(filename)
 
     # Open the image and covnert it to grayscale and 12-bit and save it
-    #gtImage = skimage.io.imread(filename)
-    gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(img))) & 0xFFF0
+    gtImage = skimage.io.imread(filename)
+    gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(gtImage))) & 0xFFF0
     gtImage = skimage.img_as_float(gtImage)
-    # saveFileName = '%s/%s_gtImage.png' % (outputDir, basename)
+    saveFileName = '%s/%s_gtImage.png' % (outputDir, basename)
     #skimage.io.imsave(saveFileName, gtImage)
 
     smallImage = gtImage
@@ -292,7 +274,6 @@ def predict(model, filename, img, downsample, scale):
     
     inRows = smallImage.shape[0] * scale
     inCols = smallImage.shape[1] * scale
-    
     outRows = inRows - offset * 2
     outCols = inCols - offset * 2
     
@@ -322,23 +303,17 @@ def predict(model, filename, img, downsample, scale):
         # Compare the GT with the bicubic
         bcList = numpy.append(bcList, DetermineComparisons(gtImage[offset:offset+outRows, offset:offset+outCols], bcImage[offset:offset+outRows, offset:offset+outCols]), axis=0)
 
-
-    # Scan across in patches to reconstruct the full image
-    outImage = numpy.zeros((outRows, outCols))
-    #CNNTime = time.time() 
-
     # tensorflow version
     reconstruct_factor, patch_test = extract_patches(bcImage)
+
+    CNNTime = time.time() 
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
     with tf.device('/gpu:0'):
-        result = model.predict(
-            # numpy.vstack(test_list), 
-            patch_test,
-            #verbose = 1,
-            # steps = 1,
-            # batch_size=len(patch_image)
+        result = test_model.predict(
+            patch_test.numpy()
+            # batch_size= 64
         )
 
     # Put the patches back in the proper order
@@ -366,11 +341,11 @@ def predict(model, filename, img, downsample, scale):
     finalColEnd = int(final_image.shape[1] - finalColStart)
     final_image = final_image[finalRowStart:finalRowEnd,finalColStart:finalColEnd]
 
-    saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, filename, downsampleIndicator, scale)
+    # saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
+    saveFileName = 'output/000087_%s%d_sisr.png' % (downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
-    #xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
-    
+    xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
     skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
@@ -403,6 +378,7 @@ if __name__ == '__main__':
     xprint('Using model = ' + modelName)
     model = load_model(modelName, compile=False)
     model.summary()
+
     xprint(delimiter)
     xprint("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
 
