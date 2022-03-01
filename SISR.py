@@ -1,22 +1,35 @@
 # Web Framework
 from email.mime import base
+import io
+import itertools
+from pathlib import Path
 from flask import Flask
 from flask import request, redirect, Response
 from flask import jsonify
 from flask import send_file
 
-
+import tensorflow as tf
+import time
 import cv2
 import os
 import PIL.Image as Image
 import zipfile
 import shutil
+import base64
+import skimage.io
+from multiprocessing.dummy import Pool as ThreadPool
+
+# Machine learning libraries
+from keras.models import load_model
+
+import sisrPredict
 
 # Tensorflow libraries
 # import tensorflow as tf
 # from tensorflow import keras
 
 # Helper libraries
+import sys
 import numpy as np
 # import matplotlib.pyplot as plt
 # import os
@@ -31,33 +44,58 @@ app = Flask(__name__)
 # Base URL
 @app.route('/', methods=['GET', 'POST'])
 def test():
+
     # handle the POST request
     if request.method == 'POST':
 
         r = request
 
         parameters = r.args
-        # print(r.args)
-        # Assign the parameters to their own variables
         filetype = parameters['type']
         scale = parameters['scaleAmount']
-        model = "models/" + parameters['model']
+        modelName = "models/" + parameters['model']
         qualityMeasure = parameters['qualityMeasure']
-        print("File Type:", filetype, ", Scale:", scale, ", Model:", model, ", Quality Measure?:", qualityMeasure)
+
+        zippedFiles = []
 
         if filetype == "zip":
-            # payload = {'single': False}
-            zip_result = open('./uploadedFile/uploaded.zip', 'wb')
-            zip_result.write(r.data)
+
+            print("File Type:", filetype, ", Scale:",  scale, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)  
 
             ######################################################
-            # unzip the file and check image size for each image #
+            # store the zipped folder #
             ######################################################
-            file_url = "/uploadedFile/uploaded.zip"
+            zipPath = "./uploadedFile/uploaded.zip"
+            with open(zipPath, 'wb') as zipFile:
+                zipFile.write(r.data)
+            
             # extract the images from the zip
-            with zipfile.ZipFile("."+file_url, 'r') as zip_ref:
+            with zipfile.ZipFile(zipPath, 'r') as zip_ref:
+                zippedFiles = zip_ref.namelist()
                 zip_ref.extractall("./uploadedFile/extractedImages")
 
+
+            zippedFilesPath = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
+            # Load CNN
+            startTimeX = time.time() 
+
+            # Upscale the image    
+            gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
+
+            # Chad Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
+            pool = ThreadPool(os.cpu_count())
+            print(os.cpu_count())
+            pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale))))
+
+            # Virgin for loop = (took me 50s-60s for 8 files, 192s for 32 files, each x4 upscale)
+            # zippedFiles = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
+            # for file in zippedFiles:
+            #     basename = Path(file).stem
+            #     gtImage = skimage.io.imread(file)
+            #     upScaleImage(modelName, basename, gtImage, qualityMeasure, int(scale))
+                   
+            shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
+            print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
             ####################################
             # Upscale each image in the folder #
             ####################################
@@ -72,48 +110,42 @@ def test():
         else: #filetype == "single_image"
             # payload = {'single': True}
             # convert string of image data to uint8
-            nparr = np.frombuffer(r.data, np.uint8)
+            #nparr = np.frombuffer(r.data, np.uint8)
+            fileName = parameters['filename']
+            print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
+            imgdata = base64.b64decode(r.data)
+            img = Image.open(io.BytesIO(imgdata))
+            img = np.asarray(img)
+
             # decode image
-            img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE) #IMREAD_GRAYSCALE #IMREAD_COLOR
+            #img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE) #IMREAD_GRAYSCALE #IMREAD_COLOR
             
-            response = {'message': 'image received. size={}x{}'.format(img.shape[1], img.shape[0])
-                    }
-            print(response)
+            #response = {'message': 'image received. size={}x{}'.format(img.shape[1], img.shape[0])}
 
             ############## Save the image as a png ##############
-            cv2.imwrite("./uploadedFile/decodedimage.png", img)
+            #cv2.imwrite("./uploadedFile/decodedimage.png", img)
 
             ###################################
             # Upscale the image in the folder #
             ###################################
+            # Load CNN
+            startTimeX = time.time()
+            
+            # Upscale the image
+            upScaleImage(modelName, fileName, img, qualityMeasure, int(scale))
+            print("Total time to upscale = %f" % (time.time()  - startTimeX))
 
-
-            #################
-            # Zip the image #
-            #################
-            zipfile.ZipFile("./upscaledImages/upscaled.zip", 'w').write("./uploadedFile/decodedimage.png")
-            file_url = "/upscaledImages/upscaled.zip"
+        ########################
+        # Zip the single image #
+        ########################
+        
+        #file_url = "/upscaledImages/upscaled.zip"
 
         ################################
         # Send the zip back to website #
         ################################
-        content_type = 'application/zip'
-        headers = {'content-type': content_type}
-        # zipfile = "./upscaledImages/upscaled.zip"
-
-        # fsock = open(zipfile, 'rb')
-
-        # payload = {'type': 'zip', 'model': modelName, 'scaleAmount': scaleAmount, 'qualityMeasure': qualityMeasure}
-        # req = request.post('http://host.docker.internal:8080/get', data=fsock, args=payload)
-        return send_file("."+file_url, mimetype="application/zip")
-        # return fsock
-
-        # return HttpResponse(req.text)
-
         ##########################
-        # Delete all saved files #
-        ##########################
-        # cleanDirectories()
+
 
         # This is just a dummy variable
         data = "Nothing"
@@ -121,12 +153,24 @@ def test():
         ######################################################################################################################################################
         ######################################################################################################################################################
         ######################################################################################################################################################
-
+       
+        # Delete all saved files #
+        ##########################
+        # cleanDirectories()
+        
         return jsonify(f"Hey! {data}")
+        #return filetype, scale, model, qualityMeasure, img
 
     # otherwise handle the GET request
     else:
         return jsonify(f"Hey!")
+
+def upScaleImage(modelName, filename, img, qualityMeasure, scale):
+    # Load CNN
+    model = load_model(modelName, compile=False)
+    #model.summary()
+    # Upscale the image
+    sisrPredict.predict(model, filename, img, qualityMeasure, scale)   
 
 # Remove/delete the files in the images and extractedImages folders
 def cleanDirectories():
@@ -169,6 +213,9 @@ def cleanDirectories():
                 os.remove("./upscaledImages/"+file_in_upscaled)
             except OSError as e:
                 print("Error: %s : %s" % ("./upscaledImages/"+file_in_upscaled, e.strerror))
+
+    if os.path.exists("./upscaledZip.zip"):
+        os.remove("./upscaledZip.zip")
 
 # Run the server on the local host
 if __name__ == '__main__':

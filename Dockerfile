@@ -12,9 +12,9 @@ WORKDIR /developer
 COPY requirements.txt /developer/
 
 RUN pip install -r requirements.txt
-RUN pip install opencv-python Pillow numpy
-RUN apt-get update
-RUN apt-get install ffmpeg libsm6 libxext6  -y
+# RUN pip install opencv-python
+# RUN apt-get update
+# RUN apt-get install ffmpeg libsm6 libxext6  -y
 
 COPY . /developer/
 
