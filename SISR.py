@@ -3,6 +3,7 @@ from email.mime import base
 from flask import Flask
 from flask import request, redirect, Response
 from flask import jsonify
+from flask import send_file
 
 
 import cv2
@@ -37,20 +38,22 @@ def test():
 
         parameters = r.args
         # print(r.args)
+        # Assign the parameters to their own variables
         filetype = parameters['type']
         scale = parameters['scaleAmount']
-        model = parameters['model']
+        model = "models/" + parameters['model']
         qualityMeasure = parameters['qualityMeasure']
         print("File Type:", filetype, ", Scale:", scale, ", Model:", model, ", Quality Measure?:", qualityMeasure)
 
         if filetype == "zip":
-            zip_result = open('./uploadedFile/testzip.zip', 'wb')
+            # payload = {'single': False}
+            zip_result = open('./uploadedFile/uploaded.zip', 'wb')
             zip_result.write(r.data)
 
             ######################################################
             # unzip the file and check image size for each image #
             ######################################################
-            file_url = "/uploadedFile/testzip.zip"
+            file_url = "/uploadedFile/uploaded.zip"
             # extract the images from the zip
             with zipfile.ZipFile("."+file_url, 'r') as zip_ref:
                 zip_ref.extractall("./uploadedFile/extractedImages")
@@ -59,8 +62,15 @@ def test():
             # Upscale each image in the folder #
             ####################################
 
+            ##################
+            # Zip the images #
+            ##################
+            shutil.make_archive("./upscaledImages/upscaled", 'zip', "./uploadedFile/extractedImages")
+            file_url = "/upscaledImages/upscaled.zip"
+
 
         else: #filetype == "single_image"
+            # payload = {'single': True}
             # convert string of image data to uint8
             nparr = np.frombuffer(r.data, np.uint8)
             # decode image
@@ -78,20 +88,32 @@ def test():
             ###################################
 
 
-        ########################
-        # Zip the single image #
-        ########################
-        shutil.make_archive("./upscaledImages/upscaled", 'zip', "./uploadedFile/extractedImages")
-        file_url = "/upscaledImages/upscaled.zip"
+            #################
+            # Zip the image #
+            #################
+            zipfile.ZipFile("./upscaledImages/upscaled.zip", 'w').write("./uploadedFile/decodedimage.png")
+            file_url = "/upscaledImages/upscaled.zip"
 
         ################################
         # Send the zip back to website #
         ################################
+        content_type = 'application/zip'
+        headers = {'content-type': content_type}
+        # zipfile = "./upscaledImages/upscaled.zip"
+
+        # fsock = open(zipfile, 'rb')
+
+        # payload = {'type': 'zip', 'model': modelName, 'scaleAmount': scaleAmount, 'qualityMeasure': qualityMeasure}
+        # req = request.post('http://host.docker.internal:8080/get', data=fsock, args=payload)
+        return send_file("."+file_url, mimetype="application/zip")
+        # return fsock
+
+        # return HttpResponse(req.text)
 
         ##########################
         # Delete all saved files #
         ##########################
-        cleanDirectories()
+        # cleanDirectories()
 
         # This is just a dummy variable
         data = "Nothing"
