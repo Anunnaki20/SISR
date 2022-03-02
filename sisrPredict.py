@@ -178,20 +178,20 @@ def Load_inputs():
     
 
 # Return a list containing all image files in the zip folder
-def extractFromZip(zipfile):
+# def extractFromZip(zipfile):
     
-    allFiles  = []
-    # opening the zip file in READ mode
-    with ZipFile(zipfile, 'r') as zip: 
-        #print("Current working directory: {0}".format(os.getcwd()))
-        os.chdir('./extractedFiles')
-        # extracting all the files
-        print('Extracting all the files now...')
-        allFiles = zip.namelist()
-        zip.extractall()
-        print('Done!')
+#     allFiles  = []
+#     # opening the zip file in READ mode
+#     with ZipFile(zipfile, 'r') as zip: 
+#         #print("Current working directory: {0}".format(os.getcwd()))
+#         os.chdir('./extractedFiles')
+#         # extracting all the files
+#         print('Extracting all the files now...')
+#         allFiles = zip.namelist()
+#         zip.extractall()
+#         print('Done!')
 
-    return allFiles
+#     return allFiles
     # # writing files to a zipfile
     # with ZipFile('upscaled_images.zip','w') as zip:
     #     # writing each file one by one
@@ -324,7 +324,7 @@ def predict(model, filename, img, downsample, scale, filetype):
 
 
     # Scan across in patches to reconstruct the full image
-    outImage = numpy.zeros((outRows, outCols))
+    #outImage = numpy.zeros((outRows, outCols))
     #CNNTime = time.time() 
 
     # tensorflow version
