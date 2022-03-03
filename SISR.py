@@ -36,6 +36,11 @@ import numpy as np
 # print('TensorFlow version: {}'.format(tf.__version__))
 # print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
+# config = tf.compat.v1.ConfigProto()
+# config.gpu_options.allocator_type = 'BFC'
+#session = tf.compat.v1.Session(config=config)
+#with tf.compat.v1.Session(config = config) as s:
+
 # Create the Flask Web application
 app = Flask(__name__)
 
@@ -96,7 +101,7 @@ def test():
             #     basename = Path(file).stem
             #     gtImage = skimage.io.imread(file)
             #     upScaleImage(modelName, basename, gtImage, qualityMeasure, int(scale))
-                   
+                
             print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
 
 
@@ -144,7 +149,7 @@ def test():
         ######################################################################################################################################################
         ######################################################################################################################################################
         ######################################################################################################################################################
-       
+    
         # Delete all saved files #
         ##########################
         #cleanDirectories()
@@ -253,7 +258,7 @@ def cleanDirectories():
                 print("Error: %s : %s" % ("./upscaledImages/"+file_in_upscaled, e.strerror))
 
     if os.path.exists("./upscaledZip.zip"):
-         os.remove("./upscaledZip.zip")
+        os.remove("./upscaledZip.zip")
 
 # Run the server on the local host
 if __name__ == '__main__':

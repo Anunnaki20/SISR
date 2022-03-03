@@ -20,7 +20,8 @@ import keras
 from keras.models import load_model
 import tensorflow as tf
 from tensorflow.python.client import device_lib
-
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
 
 # image manipulation libraries
 
@@ -33,6 +34,11 @@ from PIL import Image
 import scipy.misc
 
 keras.backend.set_learning_phase(0)
+
+# Allows to dynamically expand memory for Tensorflow to use
+config = ConfigProto()
+config.gpu_options.allow_growth = True
+session = InteractiveSession(config=config)
 
 #------------------------------------------------------------
 # Settings
@@ -281,7 +287,6 @@ def predict(model, filename, img, downsample, scale, total_image):
 
     smallImage = gtImage
     downsampleIndicator = 'x'
-    
     # Downsample image for CNN comparison if enabled
     if downsample=="True":
         # Generate "low resolution" image 
@@ -387,18 +392,17 @@ def predict(model, filename, img, downsample, scale, total_image):
     print('Time to upscale using CNN',time.time()-tim1)
     
     t2 = time.time()
-    skimage.io.imsave(saveFileName, final_image)
+    #skimage.io.imsave(saveFileName, final_image)
     #print(type(final_image),final_image.shape, final_image.ndim, final_image.shape[0],final_image.shape[1])
     #scipy.misc.imsave(saveFileName, final_image)
-    #im = Image.fromarray(final_image.reshape(final_image.shape[0],final_image.shape[1]))
-    #im.save(saveFileName)
-
-    # print(final_image.shape)
     # final_image = final_image.reshape(final_image.shape[0],final_image.shape[1])
     # im = Image.fromarray(final_image)
     # im.save(saveFileName)
 
-    #cv2.imwrite(saveFileName, final_image)
+    # print(final_image.shape)
+
+    final_image = final_image*255
+    cv2.imwrite(saveFileName, final_image)
 
     print('Time to upscale using CNN',time.time()-t2)
 
