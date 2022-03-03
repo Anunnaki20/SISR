@@ -14,14 +14,13 @@ COPY requirements.txt /developer/
 
 RUN pip install -r requirements.txt
 
-# RUN  apt-get update \
-#   && apt-get install -y wget
+# RUN  apt-get update && apt-get install -y wget
 # RUN wget "https://raw.githubusercontent.com/NVIDIA/TensorRT/main/quickstart/IntroNotebooks/helper.py"
 # RUN pip install opencv-python
 # RUN apt-get update
 # RUN apt-get install ffmpeg libsm6 libxext6  -y
 
-RUN pip install nvidia-pyindex && pip install nvidia-tensorrt
+RUN pip install nvidia-pyindex && pip install nvidia-tensorrt && pip install nvidia-cudnn
 
 COPY . /developer/
 

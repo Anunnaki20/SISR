@@ -158,12 +158,14 @@ def test():
     else:
         return jsonify(f"Hey!")
 
+
 def upScaleImage(modelName, filename, img, qualityMeasure, scale):
     # Load CNN
     model = load_model(modelName, compile=False)
     #model.summary()
     # Upscale the image
     sisrPredict.predict(model, filename, img, qualityMeasure, scale)   
+
 
 # Remove/delete the files in the images and extractedImages folders
 def cleanDirectories():
@@ -209,6 +211,7 @@ def cleanDirectories():
 
     if os.path.exists("./upscaledZip.zip"):
         os.remove("./upscaledZip.zip")
+
 
 # Run the server on the local host
 if __name__ == '__main__':

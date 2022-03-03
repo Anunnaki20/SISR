@@ -19,9 +19,6 @@ from zipfile import ZipFile
 import keras
 from keras.models import load_model
 import tensorflow as tf
-from tensorflow.python.client import device_lib
-from tensorflow.python.compiler.tensorrt import trt_convert as trt
-
 
 # image manipulation libraries
 
@@ -30,8 +27,6 @@ import skimage.io
 import skimage.transform
 import skimage.color
 import cv2
-
-keras.backend.set_learning_phase(0)
 
 #------------------------------------------------------------
 # Settings
@@ -67,22 +62,19 @@ tf.config.optimizer.set_experimental_options(
     'scoped_allocator_optimization': True,
     'arithmetic_optimization': True}
 )
-
 tf.keras.layers.LSTM(64, return_sequences=False, stateful=True, unroll=True)
+keras.backend.set_learning_phase(0)
 
-
-PRECISION = "FP16"
-from helper import ModelOptimizer # using the helper from NVIDIA
-
+#---------------------TensorRT testing---------------------------
+# PRECISION = "FP16"
+# from helper import ModelOptimizer # using the helper from NVIDIA
 # pre_model = tf.keras.models.load_model("models/model_4_t1024_e1000.h5")
 # pre_model.save("test_model")
-
 # model_dir = 'models/model_4_t1024_e1000.h5'
-opt_model = ModelOptimizer('testing_TensorRT/test_model')
-model_fp16 = opt_model.convert('testing_TensorRT/test_model'+'_FP16', precision=PRECISION)
-
-test_model = tf.keras.models.load_model("testing_TensorRT/test_model")
-
+# opt_model = ModelOptimizer('testing_TensorRT/test_model')
+# model_fp16 = opt_model.convert('testing_TensorRT/test_model'+'_FP16', precision=PRECISION)
+# test_model = tf.keras.models.load_model("testing_TensorRT/test_model")
+#-----------------------------------------------------------------
 
 
 # Make directories if necessary
@@ -271,7 +263,6 @@ def predict(model, filename, downsample, scale):
     
 
     # Create variabels for image reconstruction
-    
     inRows = smallImage.shape[0] * scale
     inCols = smallImage.shape[1] * scale
     outRows = inRows - offset * 2
@@ -311,11 +302,12 @@ def predict(model, filename, downsample, scale):
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
     with tf.device('/gpu:0'):
-        result = test_model.predict(
-            patch_test.numpy()
-            # batch_size= 64
+        result = model.predict(
+            patch_test,
+            batch_size= len(patch_test)
         )
 
+    image_recon_time = time.time()
     # Put the patches back in the proper order
     count = 0
     final_matrix = []
@@ -341,12 +333,14 @@ def predict(model, filename, downsample, scale):
     finalColEnd = int(final_image.shape[1] - finalColStart)
     final_image = final_image[finalRowStart:finalRowEnd,finalColStart:finalColEnd]
 
+    xprint('Time reconstruct image = %f' % (time.time() - image_recon_time))
+
     # saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, basename, downsampleIndicator, scale)
     saveFileName = 'output/000087_%s%d_sisr.png' % (downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
     xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
-    skimage.io.imsave(saveFileName, final_image)
+    # skimage.io.imsave(saveFileName, final_image)
 
     # Compare reconstructed image to groundtruth image
     if downsample=="True":
@@ -358,6 +352,7 @@ def predict(model, filename, downsample, scale):
         (nnList[count-1,1], blList[count-1,1], bcList[count-1,1], reconList[count-1,1], reconList[count-1,1] - bcList[count-1,1]))
         xprint('SSIM %12.6f %12.6f %12.6f %12.6f %12.6f' % 
         (nnList[count-1,2], blList[count-1,2], bcList[count-1,2], reconList[count-1,2], reconList[count-1,2] - bcList[count-1,2]))
+
 
 if __name__ == '__main__':
 
