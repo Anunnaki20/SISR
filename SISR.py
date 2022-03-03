@@ -10,7 +10,6 @@ from flask import jsonify, send_file
 import requests
 import tensorflow as tf
 import time
-import cv2
 import os
 import PIL.Image as Image
 import zipfile
@@ -83,11 +82,14 @@ def test():
             # Upscale each image in the folder #
             ####################################  
             gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
+            total_image = len(gtImageFiles)
 
             # Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
-            pool = ThreadPool(os.cpu_count())
-            pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(filetype)))
-
+            if total_image>1:
+                pool = ThreadPool(os.cpu_count())
+                pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
+            else:
+                upScaleImage(modelName, zippedFiles[0], gtImageFiles[0], qualityMeasure, int(scale), total_image)
             # for loop = (took me 50s-60s for 8 files, 192s for 32 files, each x4 upscale)
             # zippedFiles = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
             # for file in zippedFiles:
@@ -100,14 +102,11 @@ def test():
 
         else: #filetype == "single_image"
             # convert string of image data to uint8
-            #nparr = np.frombuffer(r.data, np.uint8)
-            # print("niiiiii")
-            # fileName = parameters['filename']
-            # print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
-            # imgdata = base64.b64decode(r.data)
-            # img = Image.open(io.BytesIO(imgdata))
-            # img = np.asarray(img)
-            print("Something wrong")
+            fileName = parameters['filename']
+            print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
+            imgdata = base64.b64decode(r.data)
+            img = Image.open(io.BytesIO(imgdata))
+            img = np.asarray(img)
             # decode image
             #img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE) #IMREAD_GRAYSCALE #IMREAD_COLOR
             
@@ -120,11 +119,11 @@ def test():
             # Upscale the image in the folder #
             ###################################
             # Load CNN
-            # startTimeX = time.time()
+            startTimeX = time.time()
             
             # # Upscale the image
-            # upScaleImage(modelName, fileName, img, qualityMeasure, int(scale), filetype)
-            # print("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
+            upScaleImage(modelName, fileName, img, qualityMeasure, int(scale), 1)
+            print("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
 
         shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
         ########################
@@ -158,12 +157,12 @@ def test():
         return jsonify(f"Hey!")
 
 
-def upScaleImage(modelName, filename, img, qualityMeasure, scale, filetype):
+def upScaleImage(modelName, filename, img, qualityMeasure, scale, total_image):
     # Load CNN
     model = load_model(modelName, compile=False)
     #model.summary()
     # Upscale the image
-    sisrPredict.predict(model, filename, img, qualityMeasure, scale, filetype)   
+    sisrPredict.predict(model, filename, img, qualityMeasure, scale, total_image)   
 
 # Send upscaled image to download
 # @app.route('/downloadImage')

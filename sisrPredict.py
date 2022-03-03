@@ -21,6 +21,7 @@ from keras.models import load_model
 import tensorflow as tf
 from tensorflow.python.client import device_lib
 
+
 # image manipulation libraries
 
 # Original
@@ -28,6 +29,8 @@ import skimage.io
 import skimage.transform
 import skimage.color
 import cv2
+from PIL import Image
+import scipy.misc
 
 keras.backend.set_learning_phase(0)
 
@@ -251,7 +254,7 @@ def extract_patches(image):
 
 # Upscale
 #@_time
-def predict(model, filename, img, downsample, scale, filetype):
+def predict(model, filename, img, downsample, scale, total_image):
     """Using the CNN to upscale the image
 
     Args:
@@ -332,7 +335,8 @@ def predict(model, filename, img, downsample, scale, filetype):
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
-    if filetype=="zip":
+    tim1 = time.time()
+    if total_image>1:
         with tf.device('/gpu:0'):
             result = model.predict(
                 # numpy.vstack(test_list), 
@@ -351,7 +355,6 @@ def predict(model, filename, img, downsample, scale, filetype):
                 # steps = 1,
                 # batch_size=len(patch_image)
             )
-
     # Put the patches back in the proper order
     count = 0
     final_matrix = []
@@ -381,9 +384,23 @@ def predict(model, filename, img, downsample, scale, filetype):
     saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, filename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
-    #xprint('Time to upscale using CNN = %f' % (time.time() - CNNTime))
+    print('Time to upscale using CNN',time.time()-tim1)
     
+    t2 = time.time()
     skimage.io.imsave(saveFileName, final_image)
+    #print(type(final_image),final_image.shape, final_image.ndim, final_image.shape[0],final_image.shape[1])
+    #scipy.misc.imsave(saveFileName, final_image)
+    #im = Image.fromarray(final_image.reshape(final_image.shape[0],final_image.shape[1]))
+    #im.save(saveFileName)
+
+    # print(final_image.shape)
+    # final_image = final_image.reshape(final_image.shape[0],final_image.shape[1])
+    # im = Image.fromarray(final_image)
+    # im.save(saveFileName)
+
+    #cv2.imwrite(saveFileName, final_image)
+
+    print('Time to upscale using CNN',time.time()-t2)
 
     # Compare reconstructed image to groundtruth image
     if downsample=="True":
