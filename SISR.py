@@ -16,17 +16,17 @@ import os
 import zipfile
 import shutil
 import base64
-# import skimage.io
+import skimage.io
 from multiprocessing.dummy import Pool as ThreadPool
 
 # Machine learning libraries
-# from keras.models import load_model
+from keras.models import load_model
 
 # import sisrPredict
 
 # Tensorflow libraries
-# import tensorflow as tf
-# from tensorflow import keras
+import tensorflow as tf
+from tensorflow import keras
 
 # Helper libraries
 import sys
@@ -87,135 +87,135 @@ def modelUploading():
 
 
 # Base URL
-# @app.route('/', methods=['GET', 'POST'])
-# def test():
+@app.route('/', methods=['GET', 'POST'])
+def test():
 
-#     # handle the POST request
-#     if request.method == 'POST':
+    # handle the POST request
+    if request.method == 'POST':
 
-#         r = request
+        r = request
 
-#         parameters = r.args
-#         filetype = parameters['type']
-#         scale = parameters['scaleAmount']
-#         modelName = "models/" + parameters['model']
-#         qualityMeasure = parameters['qualityMeasure']
+        parameters = r.args
+        filetype = parameters['type']
+        scale = parameters['scaleAmount']
+        modelName = "models/" + parameters['model']
+        qualityMeasure = parameters['qualityMeasure']
 
-#         zippedFiles = []
+        zippedFiles = []
 
-#         if filetype == "zip":
+        if filetype == "zip":
 
-#             print("File Type:", filetype, ", Scale:",  scale, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)  
+            print("File Type:", filetype, ", Scale:",  scale, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)  
 
-#             ######################################################
-#             # store the zipped folder #
-#             ######################################################
-#             zipPath = "./uploadedFile/uploaded.zip"
-#             with open(zipPath, 'wb') as zipFile:
-#                 zipFile.write(r.data)
+            ######################################################
+            # store the zipped folder #
+            ######################################################
+            zipPath = "./uploadedFile/uploaded.zip"
+            with open(zipPath, 'wb') as zipFile:
+                zipFile.write(r.data)
             
-#             # extract the images from the zip
-#             with zipfile.ZipFile(zipPath, 'r') as zip_ref:
-#                 zippedFiles = zip_ref.namelist()
-#                 zip_ref.extractall("./uploadedFile/extractedImages")
+            # extract the images from the zip
+            with zipfile.ZipFile(zipPath, 'r') as zip_ref:
+                zippedFiles = zip_ref.namelist()
+                zip_ref.extractall("./uploadedFile/extractedImages")
 
 
-#             zippedFilesPath = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
-#             # Load CNN
-#             startTimeX = time.time() 
+            zippedFilesPath = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
+            # Load CNN
+            startTimeX = time.time() 
 
-#             # Upscale the image    
-#             gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
+            # Upscale the image    
+            gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
 
-#             # Chad Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
-#             pool = ThreadPool(os.cpu_count())
-#             print(os.cpu_count())
-#             pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale))))
+            # Chad Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
+            pool = ThreadPool(os.cpu_count())
+            print(os.cpu_count())
+            pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale))))
 
-#             # Virgin for loop = (took me 50s-60s for 8 files, 192s for 32 files, each x4 upscale)
-#             # zippedFiles = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
-#             # for file in zippedFiles:
-#             #     basename = Path(file).stem
-#             #     gtImage = skimage.io.imread(file)
-#             #     upScaleImage(modelName, basename, gtImage, qualityMeasure, int(scale))
+            # Virgin for loop = (took me 50s-60s for 8 files, 192s for 32 files, each x4 upscale)
+            # zippedFiles = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
+            # for file in zippedFiles:
+            #     basename = Path(file).stem
+            #     gtImage = skimage.io.imread(file)
+            #     upScaleImage(modelName, basename, gtImage, qualityMeasure, int(scale))
                    
-#             shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
-#             print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
-#             ####################################
-#             # Upscale each image in the folder #
-#             ####################################
+            shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
+            print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
+            ####################################
+            # Upscale each image in the folder #
+            ####################################
 
-#             ##################
-#             # Zip the images #
-#             ##################
-#             shutil.make_archive("./upscaledImages/upscaled", 'zip', "./uploadedFile/extractedImages")
-#             file_url = "/upscaledImages/upscaled.zip"
+            ##################
+            # Zip the images #
+            ##################
+            shutil.make_archive("./upscaledImages/upscaled", 'zip', "./uploadedFile/extractedImages")
+            file_url = "/upscaledImages/upscaled.zip"
 
 
-#         else: #filetype == "single_image"
-#             # payload = {'single': True}
-#             # convert string of image data to uint8
-#             #nparr = np.frombuffer(r.data, np.uint8)
-#             fileName = parameters['filename']
-#             print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
-#             imgdata = base64.b64decode(r.data)
-#             img = Image.open(io.BytesIO(imgdata))
-#             img = np.asarray(img)
+        else: #filetype == "single_image"
+            # payload = {'single': True}
+            # convert string of image data to uint8
+            #nparr = np.frombuffer(r.data, np.uint8)
+            fileName = parameters['filename']
+            print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
+            imgdata = base64.b64decode(r.data)
+            img = Image.open(io.BytesIO(imgdata))
+            img = np.asarray(img)
 
-#             # decode image
-#             #img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE) #IMREAD_GRAYSCALE #IMREAD_COLOR
+            # decode image
+            #img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE) #IMREAD_GRAYSCALE #IMREAD_COLOR
             
-#             #response = {'message': 'image received. size={}x{}'.format(img.shape[1], img.shape[0])}
+            #response = {'message': 'image received. size={}x{}'.format(img.shape[1], img.shape[0])}
 
-#             ############## Save the image as a png ##############
-#             #cv2.imwrite("./uploadedFile/decodedimage.png", img)
+            ############## Save the image as a png ##############
+            #cv2.imwrite("./uploadedFile/decodedimage.png", img)
 
-#             ###################################
-#             # Upscale the image in the folder #
-#             ###################################
-#             # Load CNN
-#             startTimeX = time.time()
+            ###################################
+            # Upscale the image in the folder #
+            ###################################
+            # Load CNN
+            startTimeX = time.time()
             
-#             # Upscale the image
-#             upScaleImage(modelName, fileName, img, qualityMeasure, int(scale))
-#             print("Total time to upscale = %f" % (time.time()  - startTimeX))
+            # Upscale the image
+            upScaleImage(modelName, fileName, img, qualityMeasure, int(scale))
+            print("Total time to upscale = %f" % (time.time()  - startTimeX))
 
-#         ########################
-#         # Zip the single image #
-#         ########################
+        ########################
+        # Zip the single image #
+        ########################
         
-#         #file_url = "/upscaledImages/upscaled.zip"
+        #file_url = "/upscaledImages/upscaled.zip"
 
-#         ################################
-#         # Send the zip back to website #
-#         ################################
-#         ##########################
+        ################################
+        # Send the zip back to website #
+        ################################
+        ##########################
 
 
-#         # This is just a dummy variable
-#         data = "Nothing"
+        # This is just a dummy variable
+        data = "Nothing"
 
-#         ######################################################################################################################################################
-#         ######################################################################################################################################################
-#         ######################################################################################################################################################
+        ######################################################################################################################################################
+        ######################################################################################################################################################
+        ######################################################################################################################################################
        
-#         # Delete all saved files #
-#         ##########################
-#         # cleanDirectories()
+        # Delete all saved files #
+        ##########################
+        # cleanDirectories()
         
-#         return jsonify(f"Hey! {data}")
-#         #return filetype, scale, model, qualityMeasure, img
+        return jsonify(f"Hey! {data}")
+        #return filetype, scale, model, qualityMeasure, img
 
-#     # otherwise handle the GET request
-#     else:
-#         return jsonify(f"Hey!")
+    # otherwise handle the GET request
+    else:
+        return jsonify(f"Hey!")
 
-# def upScaleImage(modelName, filename, img, qualityMeasure, scale):
-#     # Load CNN
-#     model = load_model(modelName, compile=False)
-#     #model.summary()
-#     # Upscale the image
-#     sisrPredict.predict(model, filename, img, qualityMeasure, scale)   
+def upScaleImage(modelName, filename, img, qualityMeasure, scale):
+    # Load CNN
+    model = load_model(modelName, compile=False)
+    #model.summary()
+    # Upscale the image
+    sisrPredict.predict(model, filename, img, qualityMeasure, scale)   
 
 # Remove/delete the files in the images and extractedImages folders
 def cleanDirectories():
