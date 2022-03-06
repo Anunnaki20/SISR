@@ -4,14 +4,22 @@ import io
 import itertools
 from pathlib import Path
 from flask import Flask
+<<<<<<< HEAD
 from flask import request, redirect, Response, make_response
 from flask import jsonify, send_file
 
 import requests
 import tensorflow as tf
+=======
+from flask import request, redirect, Response
+from flask import jsonify
+from flask import send_file
+
+# import tensorflow as tf
+>>>>>>> master
 import time
 import os
-import PIL.Image as Image
+# import PIL.Image as Image
 import zipfile
 import shutil
 import base64
@@ -21,11 +29,11 @@ from multiprocessing.dummy import Pool as ThreadPool
 # Machine learning libraries
 from keras.models import load_model
 
-import sisrPredict
+# import sisrPredict
 
 # Tensorflow libraries
-# import tensorflow as tf
-# from tensorflow import keras
+import tensorflow as tf
+from tensorflow import keras
 
 # Helper libraries
 import sys
@@ -44,9 +52,53 @@ import numpy as np
 # Create the Flask Web application
 app = Flask(__name__)
 
+
+# Model Uploading URL
+@app.route('/uploadModel', methods=['POST'])
+def modelUploading():
+
+    # handle the POST request
+    if request.method == 'POST':
+
+        r = request
+
+        parameters = r.args
+        modelDesc = parameters['modelDesc']
+        filename = parameters['filename']
+
+        ############################
+        # store the uploaded model #
+        ############################
+        modelPath = "./models/" + filename
+
+        print("filename: " + filename + " , modelDesc: " + modelDesc)
+        # filedata = base64.b64decode(r.data)
+        filedata = r.data
+
+        with open(modelPath, 'wb') as f:
+            f.write(filedata)
+            
+        # This is just a dummy variable
+        data = "Nothing"
+
+        ######################################################################################################################################################
+        ######################################################################################################################################################
+        ######################################################################################################################################################
+       
+        # Delete all saved files #
+        ##########################
+        # cleanDirectories()
+        
+        return jsonify(f"Hey! {data}")
+        #return filetype, scale, model, qualityMeasure, img
+
+    # otherwise handle the GET request
+    else:
+        return jsonify(f"Hey!")
+
+
 # Base URL
 @app.route('/', methods=['GET', 'POST'])
-
 def test():
 
     # handle the POST request
@@ -104,8 +156,15 @@ def test():
                 
             print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
 
+            ##################
+            # Zip the images #
+            ##################
+            shutil.make_archive("./upscaledImages/upscaled", 'zip', "./uploadedFile/extractedImages")
+            file_url = "/upscaledImages/upscaled.zip"
+
 
         else: #filetype == "single_image"
+            # payload = {'single': True}
             # convert string of image data to uint8
             fileName = parameters['filename']
             print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
@@ -126,9 +185,9 @@ def test():
             # Load CNN
             startTimeX = time.time()
             
-            # # Upscale the image
-            upScaleImage(modelName, fileName, img, qualityMeasure, int(scale), 1)
-            print("Time to load model and set up upscaling parameters = %f" % (time.time()  - startTimeX))
+            # Upscale the image
+            upScaleImage(modelName, fileName, img, qualityMeasure, int(scale))
+            print("Total time to upscale = %f" % (time.time()  - startTimeX))
 
         shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
         ########################
@@ -152,7 +211,7 @@ def test():
     
         # Delete all saved files #
         ##########################
-        #cleanDirectories()
+        # cleanDirectories()
         
         return jsonify(f"Hey! {data}")
         #return filetype, scale, model, qualityMeasure, img
