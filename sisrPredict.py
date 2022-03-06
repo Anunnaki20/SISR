@@ -264,12 +264,11 @@ def predict(model, filename, img, downsample, scale, total_image):
     saveFileName = '%s/%s_%s%d_sisr.png' % (OUTPUTDIR, filename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
-    xprint('Time to upscale using CNN',time.time()-tim1)
+    xprint('Time to upscale using CNN = %f' % (time.time()-tim1))
 
     #  Save the final image
     final_image = final_image*255
     cv2.imwrite(saveFileName, final_image)
-    print("Upscaled")
 
 
     # Compare reconstructed image to groundtruth image
