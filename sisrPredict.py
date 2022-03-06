@@ -20,6 +20,8 @@ import keras
 from keras.models import load_model
 import tensorflow as tf
 from tensorflow.python.client import device_lib
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
 
 # image manipulation libraries
 
@@ -28,8 +30,14 @@ import skimage.io
 import skimage.transform
 import skimage.color
 import cv2
+from PIL import Image
 
 keras.backend.set_learning_phase(0)
+
+# Allows to dynamically expand memory for Tensorflow to use
+config = ConfigProto()
+config.gpu_options.allow_growth = True
+session = InteractiveSession(config=config)
 
 #------------------------------------------------------------
 # Settings
@@ -178,20 +186,20 @@ def Load_inputs():
     
 
 # Return a list containing all image files in the zip folder
-def extractFromZip(zipfile):
+# def extractFromZip(zipfile):
     
-    allFiles  = []
-    # opening the zip file in READ mode
-    with ZipFile(zipfile, 'r') as zip: 
-        #print("Current working directory: {0}".format(os.getcwd()))
-        os.chdir('./extractedFiles')
-        # extracting all the files
-        print('Extracting all the files now...')
-        allFiles = zip.namelist()
-        zip.extractall()
-        print('Done!')
+#     allFiles  = []
+#     # opening the zip file in READ mode
+#     with ZipFile(zipfile, 'r') as zip: 
+#         #print("Current working directory: {0}".format(os.getcwd()))
+#         os.chdir('./extractedFiles')
+#         # extracting all the files
+#         print('Extracting all the files now...')
+#         allFiles = zip.namelist()
+#         zip.extractall()
+#         print('Done!')
 
-    return allFiles
+#     return allFiles
     # # writing files to a zipfile
     # with ZipFile('upscaled_images.zip','w') as zip:
     #     # writing each file one by one
@@ -251,7 +259,7 @@ def extract_patches(image):
 
 # Upscale
 #@_time
-def predict(model, filename, img, downsample, scale):
+def predict(model, filename, img, downsample, scale, total_image):
     """Using the CNN to upscale the image
 
     Args:
@@ -291,7 +299,6 @@ def predict(model, filename, img, downsample, scale):
 
     smallImage = gtImage
     downsampleIndicator = 'x'
-    
     # Downsample image for CNN comparison if enabled
     if downsample=="True":
         # Generate "low resolution" image 
@@ -373,6 +380,7 @@ def predict(model, filename, img, downsample, scale):
     finalColEnd = int(final_image.shape[1] - finalColStart)
     final_image = final_image[finalRowStart:finalRowEnd,finalColStart:finalColEnd]
 
+    filename = Path(filename).stem
     saveFileName = '%s/%s_%s%d_sisr.png' % (outputDir, filename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
