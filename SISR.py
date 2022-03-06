@@ -4,19 +4,11 @@ import io
 import itertools
 from pathlib import Path
 from flask import Flask
-<<<<<<< HEAD
-from flask import request, redirect, Response, make_response
-from flask import jsonify, send_file
-
-import requests
-import tensorflow as tf
-=======
 from flask import request, redirect, Response
 from flask import jsonify
 from flask import send_file
 
 # import tensorflow as tf
->>>>>>> master
 import time
 import os
 # import PIL.Image as Image
