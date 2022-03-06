@@ -7,8 +7,8 @@ from flask import Flask
 from flask import request, redirect, Response, make_response
 from flask import jsonify, send_file
 
-import requests
-import tensorflow as tf
+# import requests
+# import tensorflow as tf
 import time
 import os
 import PIL.Image as Image
