@@ -31,7 +31,6 @@ import skimage.transform
 import skimage.color
 import cv2
 from PIL import Image
-import scipy.misc
 
 keras.backend.set_learning_phase(0)
 
