@@ -5,11 +5,6 @@ from flask import Flask
 from flask import request, Response
 from flask import jsonify
 
-<<<<<<< HEAD
-# import requests
-# import tensorflow as tf
-=======
->>>>>>> origin/master
 import time
 import os
 import PIL.Image as Image
