@@ -3,9 +3,10 @@ matplotlib
 scikit-image
 keras==2.6.0
 flask==2.0.2
-opencv-python-headless==4.5.3.56
+opencv-python-headless==4.1.2.30
 joblib
 numba
 Pillow
+scipy
 tabulate
 pydicom
