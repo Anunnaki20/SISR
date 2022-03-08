@@ -100,7 +100,7 @@ if not os.path.isdir("ExtractedFiles"):
     os.mkdir("ExtractedFiles")
 
 # Open the loggin file
-log = open(OUTPUTDIR + '/sisrPredict.log', 'a+')
+log = open('./sisrPredict.log', 'a+')
 #------------------------------------------------------------
 
 
@@ -179,7 +179,6 @@ def predict(model, filename, img, downsample, scale, total_image):
     if len(img.shape) != 3:
         img = numpy.expand_dims(img, axis=-1)
         img = numpy.repeat(img, 4, axis=-1)
-        print(img.shape)
 
     # Open the image and covnert it to grayscale and 12-bit and save it
     if img.shape[-1] == 4:
