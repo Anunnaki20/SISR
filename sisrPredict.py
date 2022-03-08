@@ -146,7 +146,7 @@ def extract_patches(image):
     image = numpy.expand_dims(image, axis = -1)
     patches =  tf.image.extract_patches(image ,patch_size, [1, 116,116, 1], [1, 1, 1, 1], 'SAME')
     _, row, col, _ = patches.shape
-    return row, tf.reshape(patches, [row*col,128,128,1])
+    return row, col, tf.reshape(patches, [row*col,128,128,1])
 
 
 # Upscale
@@ -230,7 +230,7 @@ def predict(model, filename, img, downsample, scale, total_image):
 
 
     # Scan across image and break it into patches
-    reconstruct_factor, patch_test = extract_patches(bcImage)
+    row_recon, col_recon, patch_test = extract_patches(bcImage)
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
@@ -260,18 +260,20 @@ def predict(model, filename, img, downsample, scale, total_image):
     final_matrix = []
     inner = []
     for i in result:
-        if count < reconstruct_factor:
+        if count < col_recon:
             inner.append(numpy.squeeze(i, axis=2))
             count += 1
-            if count >= reconstruct_factor:
-                final_matrix.append(inner.copy())
-                inner = []
-                count = 0
-    
+        if count >= col_recon:
+            final_matrix.append(inner.copy())
+            inner = []
+            count = 0
+        
     # Reconstruct the image
     final_image = numpy.array(final_matrix)
+    print(final_image.shape)
     numrows, numcols, height, width = numpy.shape(final_matrix)
     final_image = final_image.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
+    print(final_image.shape)
 
     # Remove the black border
     finalRowStart = (final_image.shape[0]-outRows)//2
