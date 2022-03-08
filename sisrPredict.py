@@ -69,6 +69,7 @@ local_device_protos = device_lib.list_local_devices()
 ([x.name for x in local_device_protos if x.device_type == 'GPU'], 
  [x.name for x in local_device_protos if x.device_type == 'CPU'])
 
+os.environ["CUDA_VISIBLE_DEVICES"]="0"   
 sess = tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(log_device_placement=True))
 tf.config.optimizer.set_experimental_options(
     {'debug_stripper': True,
@@ -77,6 +78,18 @@ tf.config.optimizer.set_experimental_options(
     'scoped_allocator_optimization': True,
     'arithmetic_optimization': True}
 )
+keras.backend.set_learning_phase(0)
+
+#---------------------TensorRT testing---------------------------
+# PRECISION = "FP16"
+# from helper import ModelOptimizer # using the helper from NVIDIA
+# pre_model = tf.keras.models.load_model("models/model_4_t1024_e1000.h5")
+# pre_model.save("test_model")
+# model_dir = 'models/model_4_t1024_e1000.h5'
+# opt_model = ModelOptimizer('testing_TensorRT/test_model')
+# model_fp16 = opt_model.convert('testing_TensorRT/test_model'+'_FP16', precision=PRECISION)
+# test_model = tf.keras.models.load_model("testing_TensorRT/test_model")
+#-----------------------------------------------------------------
 
 
 # Make directories if necessary
@@ -151,7 +164,6 @@ def predict(model, filename, img, downsample, scale, total_image):
     xprint(DELIMITERMAJOR)
     xprint('Project: SISR - Upscaler')
     xprint('   Date: %s' % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    xprint('Model: %s' % (model))
     xprint('scale: %s' % (scale))
     xprint(DELIMITER)
 
@@ -162,6 +174,11 @@ def predict(model, filename, img, downsample, scale, total_image):
     reconList = numpy.empty((0,3))
 
 
+
+    # If the image doesn't have the proper dimensions create them
+    if len(img.shape) != 3 and img.shape[-1] != 4:
+        img = numpy.expand_dims(img, axis=-1)
+        img = numpy.repeat(img, 4, axis=-1)
 
     # Open the image and covnert it to grayscale and 12-bit and save it
     gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(img))) & 0xFFF0
@@ -211,6 +228,8 @@ def predict(model, filename, img, downsample, scale, total_image):
 
     # Scan across image and break it into patches
     reconstruct_factor, patch_test = extract_patches(bcImage)
+
+    CNNTime = time.time() 
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
