@@ -176,12 +176,16 @@ def predict(model, filename, img, downsample, scale, total_image):
 
 
     # If the image doesn't have the proper dimensions create them
-    if len(img.shape) != 3 and img.shape[-1] != 4:
+    if len(img.shape) != 3:
         img = numpy.expand_dims(img, axis=-1)
         img = numpy.repeat(img, 4, axis=-1)
+        print(img.shape)
 
     # Open the image and covnert it to grayscale and 12-bit and save it
-    gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(img))) & 0xFFF0
+    if img.shape[-1] == 4:
+        gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(img))) & 0xFFF0
+    else:
+         gtImage = skimage.img_as_uint(skimage.color.rgb2gray(img)) & 0xFFF0
     gtImage = skimage.img_as_float(gtImage)
 
     smallImage = gtImage
@@ -228,8 +232,6 @@ def predict(model, filename, img, downsample, scale, total_image):
 
     # Scan across image and break it into patches
     reconstruct_factor, patch_test = extract_patches(bcImage)
-
-    CNNTime = time.time() 
 
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128

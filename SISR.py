@@ -74,63 +74,70 @@ def upload():
 
         zippedFiles = []
 
-        if filetype == "zip":
+        try:
 
-            print("File Type:", filetype, ", Scale:",  scale, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)  
-            
-            ######################################################
-            # store the zipped folder #
-            ######################################################
-            zipPath = "./uploadedFile/uploaded.zip"
-            with open(zipPath, 'wb') as zipFile:
-                zipFile.write(r.data)
-            
-            # extract the images from the zip
-            with zipfile.ZipFile(zipPath, 'r') as zip_ref:
-                zippedFiles = zip_ref.namelist()
-                zip_ref.extractall("./uploadedFile/extractedImages")
+            if filetype == "zip":
+
+                print("File Type:", filetype, ", Scale:",  scale, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)  
+                
+                ######################################################
+                # store the zipped folder #
+                ######################################################
+                zipPath = "./uploadedFile/uploaded.zip"
+                with open(zipPath, 'wb') as zipFile:
+                    zipFile.write(r.data)
+                
+                # extract the images from the zip
+                with zipfile.ZipFile(zipPath, 'r') as zip_ref:
+                    zippedFiles = zip_ref.namelist()
+                    zip_ref.extractall("./uploadedFile/extractedImages")
 
 
-            zippedFilesPath = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
-            # Load CNN
-            startTimeX = time.time() 
+                zippedFilesPath = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
+                # Load CNN
+                startTimeX = time.time() 
 
-            ####################################
-            # Upscale each image in the folder #
-            ####################################  
-            gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
-            total_image = len(gtImageFiles)
+                ####################################
+                # Upscale each image in the folder #
+                ####################################  
+                gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
+                total_image = len(gtImageFiles)
 
-            # Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
-            if total_image>1:
-                pool = ThreadPool(os.cpu_count())
-                pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
-            else:
-                upScaleImage(modelName, zippedFiles[0], gtImageFiles[0], qualityMeasure, int(scale), total_image)
+                # Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
+                if total_image>1:
+                    pool = ThreadPool(os.cpu_count())
+                    pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
+                else:
+                    upScaleImage(modelName, zippedFiles[0], gtImageFiles[0], qualityMeasure, int(scale), total_image)
 
-            print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
+                print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
 
-        else: #filetype == "single_image"
-            fileName = parameters['filename']
-            print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
-            imgdata = base64.b64decode(r.data)
-            img = Image.open(io.BytesIO(imgdata))
-            img = np.asarray(img)
+            else: #filetype == "single_image"
+                fileName = parameters['filename']
+                print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
+                imgdata = base64.b64decode(r.data)
+                img = Image.open(io.BytesIO(imgdata))
+                img = np.asarray(img)
 
-            ###################################
-            # Upscale the image in the folder #
-            ###################################
-            # Load CNN
-            startTimeX = time.time()
-            
-            # Upscale the image
-            upScaleImage(modelName, fileName, img, qualityMeasure, int(scale), 1)
-            print("Total time to upscale = %f" % (time.time()  - startTimeX))
+                ###################################
+                # Upscale the image in the folder #
+                ###################################
+                # Load CNN
+                startTimeX = time.time()
+                
+                # Upscale the image
+                upScaleImage(modelName, fileName, img, qualityMeasure, int(scale), 1)
+                print("Total time to upscale = %f" % (time.time()  - startTimeX))
 
-        # Zips upscaled images
-        shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
+            # Zips upscaled images
+            shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
 
-        
+        except Exception as e:
+            cleanDirectories()
+            print("Error in upload")
+            return ("", 500)
+
+
         return ("", 204)
 
     # otherwise handle the GET request
@@ -138,6 +145,7 @@ def upload():
         return ("", 204)
 
 
+# Call the CNN
 def upScaleImage(modelName, filename, img, qualityMeasure, scale, total_image):
     # Load CNN
     model = load_model(modelName, compile=False)
@@ -149,27 +157,34 @@ def upScaleImage(modelName, filename, img, qualityMeasure, scale, total_image):
 @app.route('/downloadZip', methods=['GET','POST'])
 def sendZip():
     
-    ### Check the already created upscaled zip folder and then create a new zipFile object on memory ###
-    FILEPATH = "./upscaledZip.zip"
-    fileobj = io.BytesIO()
-    with zipfile.ZipFile(fileobj, 'w') as zip_file:
-        zip_info = zipfile.ZipInfo(FILEPATH)
-        zip_info.date_time = time.localtime(time.time())[:6]
-        zip_info.compress_type = zipfile.ZIP_DEFLATED
-        with open(FILEPATH, 'rb') as fd:
-            zip_file.writestr(zip_info, fd.read())
-    fileobj.seek(0)
+    try:
+        ### Check the already created upscaled zip folder and then create a new zipFile object on memory ###
+        FILEPATH = "./upscaledZip.zip"
+        fileobj = io.BytesIO()
+        with zipfile.ZipFile(fileobj, 'w') as zip_file:
+            zip_info = zipfile.ZipInfo(FILEPATH)
+            zip_info.date_time = time.localtime(time.time())[:6]
+            zip_info.compress_type = zipfile.ZIP_DEFLATED
+            with open(FILEPATH, 'rb') as fd:
+                zip_file.writestr(zip_info, fd.read())
+        fileobj.seek(0)
 
-    with open("./upscaledZip.zip", 'rb') as f:
-        data = f.readlines()
-    
-    cleanDirectories()
-    
-    return Response(data, 
-        headers={
-        'Content-Type': 'application/zip',
-        'Content-Disposition':'attachment;filename=upscaledZip.zip'
-    })
+        with open("./upscaledZip.zip", 'rb') as f:
+            data = f.readlines()
+        
+        os.remove("./upscaledZip.zip")
+        cleanDirectories()
+        
+        return Response(data, 
+            headers={
+            'Content-Type': 'application/zip',
+            'Content-Disposition':'attachment;filename=upscaledZip.zip'
+        })
+
+    except Exception as e:
+        print("Error in sendZip")
+        cleanDirectories()
+        return Response(None,status=500)
 
 
 
