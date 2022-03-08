@@ -179,42 +179,45 @@ def cleanDirectories():
     ####################################
     # Delete the items in subdirectory #
     ####################################
-    for file_in_sub in os.listdir("./uploadedFile/extractedImages"):
-        if os.path.isdir("./uploadedFile/extractedImages/"+file_in_sub):
-            try:
-                shutil.rmtree("./uploadedFile/extractedImages/"+file_in_sub)
-                # os.rmdir("./images/extractedImages/"+file_in_sub)
-            except OSError as e:
-                print("Error: %s : %s" % ("./uploadedFile/extractedImages/"+file_in_sub, e.strerror))
-        else:
-            try:
-                os.remove("./uploadedFile/extractedImages/"+file_in_sub)
-            except OSError as e:
-                print("Error: %s : %s" % ("./uploadedFile/extractedImages/"+file_in_sub, e.strerror))
+    if os.path.exists('./uploadedFile/extractedImages/'):
+        for file_in_sub in os.listdir("./uploadedFile/extractedImages"):
+            if os.path.isdir("./uploadedFile/extractedImages/"+file_in_sub):
+                try:
+                    shutil.rmtree("./uploadedFile/extractedImages/"+file_in_sub)
+                    # os.rmdir("./images/extractedImages/"+file_in_sub)
+                except OSError as e:
+                    print("Error: %s : %s" % ("./uploadedFile/extractedImages/"+file_in_sub, e.strerror))
+            else:
+                try:
+                    os.remove("./uploadedFile/extractedImages/"+file_in_sub)
+                except OSError as e:
+                    print("Error: %s : %s" % ("./uploadedFile/extractedImages/"+file_in_sub, e.strerror))
 
     ##############################################
     # Delete the items in uploadedFile directory #
     ##############################################
-    for file_in_main in os.listdir("./uploadedFile"):
-        if os.path.isdir("./uploadedFile/"+file_in_main): # item is a directory
-            continue # do not delete
-        elif os.path.isfile("./uploadedFile/"+file_in_main): # item is a file
-            try:
-                os.remove("./uploadedFile/"+file_in_main)
-            except OSError as e:
-                print("Error: %s : %s" % ("./uploadedFile/"+file_in_main, e.strerror))
+    if os.path.exists('./uploadedFile'):
+        for file_in_main in os.listdir("./uploadedFile"):
+            if os.path.isdir("./uploadedFile/"+file_in_main): # item is a directory
+                continue # do not delete
+            elif os.path.isfile("./uploadedFile/"+file_in_main): # item is a file
+                try:
+                    os.remove("./uploadedFile/"+file_in_main)
+                except OSError as e:
+                    print("Error: %s : %s" % ("./uploadedFile/"+file_in_main, e.strerror))
 
     ################################################
     # Delete the items in upscaledImages directory #
     ################################################
-    for file_in_upscaled in os.listdir("./upscaledImages"):
-        if os.path.isdir("./upscaledImages/"+file_in_upscaled): # item is a directory
-            continue # do not delete
-        elif os.path.isfile("./upscaledImages/"+file_in_upscaled): # item is a file
-            try:
-                os.remove("./upscaledImages/"+file_in_upscaled)
-            except OSError as e:
-                print("Error: %s : %s" % ("./upscaledImages/"+file_in_upscaled, e.strerror))
+    if os.path.exists('./upscaledImages'):
+        for file_in_upscaled in os.listdir("./upscaledImages"):
+            if os.path.isdir("./upscaledImages/"+file_in_upscaled): # item is a directory
+                continue # do not delete
+            elif os.path.isfile("./upscaledImages/"+file_in_upscaled): # item is a file
+                try:
+                    os.remove("./upscaledImages/"+file_in_upscaled)
+                except OSError as e:
+                    print("Error: %s : %s" % ("./upscaledImages/"+file_in_upscaled, e.strerror))
 
     if os.path.exists("./upscaledZip.zip"):
         os.remove("./upscaledZip.zip")

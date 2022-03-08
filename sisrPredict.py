@@ -78,7 +78,6 @@ tf.config.optimizer.set_experimental_options(
     'scoped_allocator_optimization': True,
     'arithmetic_optimization': True}
 )
-tf.keras.layers.LSTM(64, return_sequences=False, stateful=True, unroll=True)
 keras.backend.set_learning_phase(0)
 
 #---------------------TensorRT testing---------------------------
@@ -165,7 +164,6 @@ def predict(model, filename, img, downsample, scale, total_image):
     xprint(DELIMITERMAJOR)
     xprint('Project: SISR - Upscaler')
     xprint('   Date: %s' % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    xprint('Model: %s' % (model))
     xprint('scale: %s' % (scale))
     xprint(DELIMITER)
 
@@ -176,6 +174,11 @@ def predict(model, filename, img, downsample, scale, total_image):
     reconList = numpy.empty((0,3))
 
 
+
+    # If the image doesn't have the proper dimensions create them
+    if len(img.shape) != 3 and img.shape[-1] != 4:
+        img = numpy.expand_dims(img, axis=-1)
+        img = numpy.repeat(img, 4, axis=-1)
 
     # Open the image and covnert it to grayscale and 12-bit and save it
     gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(img))) & 0xFFF0
