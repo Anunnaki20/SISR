@@ -286,12 +286,14 @@ def predict(model, filename, img, downsample, scale, total_image):
     saveFileName = '%s/%s_%s%d_sisr.png' % (OUTPUTDIR, filename, downsampleIndicator, scale)
     final_image[final_image > 1] = 1
     final_image[final_image < 0] = 0
+
+    final_image = final_image.astype("float64") # We need this for image comparison 
     xprint('Time to upscale using CNN = %f' % (time.time()-tim1))
 
     #  Save the final image
-    final_image = final_image*255
-    cv2.imwrite(saveFileName, final_image)
 
+    final_imageSave = final_image*255
+    cv2.imwrite(saveFileName, final_imageSave) 
 
     # Compare reconstructed image to groundtruth image
     if downsample=="True":
@@ -303,7 +305,16 @@ def predict(model, filename, img, downsample, scale, total_image):
         (nnList[count-1,1], blList[count-1,1], bcList[count-1,1], reconList[count-1,1], reconList[count-1,1] - bcList[count-1,1]))
         xprint('SSIM %12.6f %12.6f %12.6f %12.6f %12.6f' % 
         (nnList[count-1,2], blList[count-1,2], bcList[count-1,2], reconList[count-1,2], reconList[count-1,2] - bcList[count-1,2]))
+        
+        return nnList[count-1,0], blList[count-1,0], bcList[count-1,0], reconList[count-1,0], reconList[count-1,0] - bcList[count-1,0], nnList[count-1,1], blList[count-1,1], bcList[count-1,1], reconList[count-1,1], reconList[count-1,1] - bcList[count-1,1], nnList[count-1,2], blList[count-1,2], bcList[count-1,2], reconList[count-1,2], reconList[count-1,2] - bcList[count-1,2]
 
+        # comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
+        # (nnList[count-1,0], blList[count-1,0], bcList[count-1,0], reconList[count-1,0], reconList[count-1,0] - bcList[count-1,0]))
+        # comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
+        # (nnList[count-1,1], blList[count-1,1], bcList[count-1,1], reconList[count-1,1], reconList[count-1,1] - bcList[count-1,1]))
+        # comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
+        # (nnList[count-1,2], blList[count-1,2], bcList[count-1,2], reconList[count-1,2], reconList[count-1,2] - bcList[count-1,2]))
+        # comparison.close()
 
 
 
