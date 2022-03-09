@@ -189,7 +189,7 @@ def upScaleImage(modelName, filename, img, qualityMeasure, scale, total_image):
     # Load CNN
     model = load_model(modelName, compile=False)
     # Upscale the image
-    sisrPredict.predict(model, filename, img, qualityMeasure, scale, total_image)   
+    return sisrPredict.predict(model, filename, img, qualityMeasure, scale, total_image)   
 
 
 # Send upscaled zip folder to download
