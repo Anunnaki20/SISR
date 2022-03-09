@@ -61,6 +61,8 @@ def modelUploading():
 @app.route('/', methods=['POST'])
 def upload():
 
+    cleanDirectories()  # Clean all previously saved directories
+    
     # handle the POST request
     if request.method == 'POST':
 
@@ -74,69 +76,106 @@ def upload():
 
         zippedFiles = []
 
-        try:
+        # Initialize all quality metrics
+        nnMSE = blMSE = bcMSE = rcMSE = diffMSE = nnPSNR = blPSNR = bcPSNR = rcPSNR = diffPSNR = nnSSIM = blSSIM = bcSSIM = rcSSIM = diffSSIM = 0
+        
+        # Create the comparison result file
+        comparison = open("upscaledImages/comparisonResult.txt", "a")
 
-            if filetype == "zip":
+        if filetype == "zip":
 
-                print("File Type:", filetype, ", Scale:",  scale, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)  
+            print("File Type:", filetype, ", Scale:",  scale, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)  
+            
+            ######################################################
+            # store the zipped folder #
+            ######################################################
+            zipPath = "./uploadedFile/uploaded.zip"
+            with open(zipPath, 'wb') as zipFile:
+                zipFile.write(r.data)
+            
+            # extract the images from the zip
+            with zipfile.ZipFile(zipPath, 'r') as zip_ref:
+                zippedFiles = zip_ref.namelist()
+                zip_ref.extractall("./uploadedFile/extractedImages")
+
+
+            zippedFilesPath = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
+            # Load CNN
+            startTimeX = time.time() 
+
+            ####################################
+            # Upscale each image in the folder #
+            ####################################  
+            gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
+            total_image = len(gtImageFiles)
+
+
+            # Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
+            pool = ThreadPool(os.cpu_count())
+            # print(type(qualityMeasure))
+            if qualityMeasure=="True":
+                results = pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
+                #print(results)
+                for index, result in enumerate(results):
+                    nnMSE += result[0]
+                    blMSE += result[1]
+                    bcMSE += result[2]
+                    rcMSE += result[3]
+                    diffMSE += result[4]
+                    nnPSNR += result[5]
+                    blPSNR += result[6]
+                    bcPSNR += result[7]
+                    rcPSNR += result[8]
+                    diffPSNR += result[9]
+                    nnSSIM += result[10]
+                    blSSIM += result[11]
+                    bcSSIM += result[12]
+                    rcSSIM += result[13]
+                    diffSSIM += result[14]
+                comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
+                (nnMSE/total_image, blMSE/total_image, bcMSE/total_image, rcMSE/total_image, diffMSE/total_image))
+                comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
+                (nnPSNR/total_image, blPSNR/total_image, bcPSNR/total_image, rcPSNR/total_image, diffPSNR/total_image))
+                comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
+                (nnSSIM/total_image, blSSIM/total_image, bcSSIM/total_image, rcSSIM/total_image, diffSSIM/total_image))
                 
-                ######################################################
-                # store the zipped folder #
-                ######################################################
-                zipPath = "./uploadedFile/uploaded.zip"
-                with open(zipPath, 'wb') as zipFile:
-                    zipFile.write(r.data)
-                
-                # extract the images from the zip
-                with zipfile.ZipFile(zipPath, 'r') as zip_ref:
-                    zippedFiles = zip_ref.namelist()
-                    zip_ref.extractall("./uploadedFile/extractedImages")
+            else:
+                pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
+            
+            comparison.close()
+            print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
 
+        else: #filetype == "single_image"
+            fileName = parameters['filename']
+            print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
+            imgdata = base64.b64decode(r.data)
+            img = Image.open(io.BytesIO(imgdata))
+            img = np.asarray(img)
 
-                zippedFilesPath = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
-                # Load CNN
-                startTimeX = time.time() 
+            ###################################
+            # Upscale the image in the folder #
+            ###################################
+            # Load CNN
+            startTimeX = time.time()
+            
+            # Upscale the image
+            if qualityMeasure=="True":
+                result = upScaleImage(modelName, fileName, img, qualityMeasure, int(scale), 1)
+                comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
+                (result[0], result[1], result[2], result[3], result[4]))
+                comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
+                (result[5], result[6], result[7], result[8], result[9]))
+                comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
+                (result[10], result[11], result[12], result[13], result[14])) 
 
-                ####################################
-                # Upscale each image in the folder #
-                ####################################  
-                gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
-                total_image = len(gtImageFiles)
-
-                # Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
-                if total_image>1:
-                    pool = ThreadPool(os.cpu_count())
-                    pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
-                else:
-                    upScaleImage(modelName, zippedFiles[0], gtImageFiles[0], qualityMeasure, int(scale), total_image)
-
-                print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
-
-            else: #filetype == "single_image"
-                fileName = parameters['filename']
-                print("File Type:", filetype, ", Scale:",  scale, "filename ", fileName, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)            
-                imgdata = base64.b64decode(r.data)
-                img = Image.open(io.BytesIO(imgdata))
-                img = np.asarray(img)
-
-                ###################################
-                # Upscale the image in the folder #
-                ###################################
-                # Load CNN
-                startTimeX = time.time()
-                
-                # Upscale the image
+            else:
                 upScaleImage(modelName, fileName, img, qualityMeasure, int(scale), 1)
-                print("Total time to upscale = %f" % (time.time()  - startTimeX))
 
-            # Zips upscaled images
-            shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
+            comparison.close()
+            print("Total time to upscale = %f" % (time.time()  - startTimeX))
 
-        except Exception as e:
-            cleanDirectories()
-            print("Error in upload")
-            return ("", 500)
-
+        # Zips upscaled images
+        shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
 
         return ("", 204)
 
