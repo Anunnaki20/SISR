@@ -89,6 +89,8 @@ def upload():
             ######################################################
             # store the zipped folder #
             ######################################################
+            if not os.path.isdir("uploadedFile"):
+                os.mkdir("uploadedFile")
             zipPath = "./uploadedFile/uploaded.zip"
             with open(zipPath, 'wb') as zipFile:
                 zipFile.write(r.data)
