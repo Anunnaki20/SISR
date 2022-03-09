@@ -177,7 +177,6 @@ def upload():
         # Zips upscaled images
         shutil.make_archive("./upscaledZip", 'zip', './upscaledImages')
 
-        
         return ("", 204)
 
     # otherwise handle the GET request
@@ -185,6 +184,7 @@ def upload():
         return ("", 204)
 
 
+# Call the CNN
 def upScaleImage(modelName, filename, img, qualityMeasure, scale, total_image):
     # Load CNN
     model = load_model(modelName, compile=False)
@@ -196,25 +196,34 @@ def upScaleImage(modelName, filename, img, qualityMeasure, scale, total_image):
 @app.route('/downloadZip', methods=['GET','POST'])
 def sendZip():
     
-    ### Check the already created upscaled zip folder and then create a new zipFile object on memory ###
-    FILEPATH = "./upscaledZip.zip"
-    fileobj = io.BytesIO()
-    with zipfile.ZipFile(fileobj, 'w') as zip_file:
-        zip_info = zipfile.ZipInfo(FILEPATH)
-        zip_info.date_time = time.localtime(time.time())[:6]
-        zip_info.compress_type = zipfile.ZIP_DEFLATED
-        with open(FILEPATH, 'rb') as fd:
-            zip_file.writestr(zip_info, fd.read())
-    fileobj.seek(0)
+    try:
+        ### Check the already created upscaled zip folder and then create a new zipFile object on memory ###
+        FILEPATH = "./upscaledZip.zip"
+        fileobj = io.BytesIO()
+        with zipfile.ZipFile(fileobj, 'w') as zip_file:
+            zip_info = zipfile.ZipInfo(FILEPATH)
+            zip_info.date_time = time.localtime(time.time())[:6]
+            zip_info.compress_type = zipfile.ZIP_DEFLATED
+            with open(FILEPATH, 'rb') as fd:
+                zip_file.writestr(zip_info, fd.read())
+        fileobj.seek(0)
 
-    with open("./upscaledZip.zip", 'rb') as f:
-        data = f.readlines()
+        with open("./upscaledZip.zip", 'rb') as f:
+            data = f.readlines()
+        
+        os.remove("./upscaledZip.zip")
+        cleanDirectories()
+        
+        return Response(data, 
+            headers={
+            'Content-Type': 'application/zip',
+            'Content-Disposition':'attachment;filename=upscaledZip.zip'
+        })
 
-    return Response(data, 
-        headers={
-        'Content-Type': 'application/zip',
-        'Content-Disposition':'attachment;filename=upscaledZip.zip'
-    })
+    except Exception as e:
+        print("Error in sendZip")
+        cleanDirectories()
+        return Response(None,status=500)
 
 
 
