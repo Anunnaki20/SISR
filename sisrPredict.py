@@ -207,11 +207,16 @@ def predict(model, filename, img, downsample, scale, total_image):
     saveFileName = '%s/%s_%s%d_bcImage.png' % (OUTPUTDIR, filename, downsampleIndicator, scale)
     xprint("Time to upscale to Bi-Cubic = %f" % (time.time()  - starttime_BC))
 
+
     if downsample=="True":
         # ------------------- Upsample using nearest neighbour interpolation ---------------------
         nnImage = cv2.resize(smallImage, (inCols, inRows), interpolation = cv2.INTER_NEAREST)
         saveFileName = '%s/%s_%s%d_nnImage.png' % (OUTPUTDIR, filename, downsampleIndicator, scale)
         #skimage.io.imsave(saveFileName, nnImage)
+
+        nnImageSave = nnImage*255
+        cv2.imwrite(saveFileName, nnImageSave) 
+
         nnList = numpy.append(nnList, DetermineComparisons(gtImage[OFFSET:OFFSET+outRows, OFFSET:OFFSET+outCols], nnImage[OFFSET:OFFSET+outRows, OFFSET:OFFSET+outCols]), axis=0)
         # ------------------------------------------------------------------------------------
 
@@ -222,8 +227,14 @@ def predict(model, filename, img, downsample, scale, total_image):
         blList = numpy.append(blList, DetermineComparisons(gtImage[OFFSET:OFFSET+outRows, OFFSET:OFFSET+outCols], blImage[OFFSET:OFFSET+outRows, OFFSET:OFFSET+outCols]), axis=0)
         # ------------------------------------------------------------------------------------
 
+        blImageSave = blImage*255
+        cv2.imwrite(saveFileName, blImageSave) 
+
         # Compare the GT with the bicubic
         bcList = numpy.append(bcList, DetermineComparisons(gtImage[OFFSET:OFFSET+outRows, OFFSET:OFFSET+outCols], bcImage[OFFSET:OFFSET+outRows, OFFSET:OFFSET+outCols]), axis=0)
+
+        bcImageSave = bcImage*255
+        cv2.imwrite(saveFileName, bcImageSave) 
 
 
     # Scan across image and break it into patches
