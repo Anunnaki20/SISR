@@ -173,21 +173,17 @@ def predict(model, filename, img, downsample, scale, total_image):
     bcList = numpy.empty((0,3))
     reconList = numpy.empty((0,3))
 
-
-
-    # If the image doesn't have the proper dimensions create them
-    if len(img.shape) != 3:
-        img = numpy.expand_dims(img, axis=-1)
-        img = numpy.repeat(img, 4, axis=-1)
-
     # Open the image and covnert it to grayscale and 12-bit and save it
-    if img.shape[-1] == 4:
+    if len(img.shape) != 3:
+         gtImage = skimage.img_as_uint(img) & 0xFFF0
+    elif img.shape[-1] == 4:
         gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(img))) & 0xFFF0
     else:
          gtImage = skimage.img_as_uint(skimage.color.rgb2gray(img)) & 0xFFF0
-    gtImage = skimage.img_as_float(gtImage)
 
+    gtImage = skimage.img_as_float(gtImage)
     smallImage = gtImage
+
     downsampleIndicator = 'x'
     # Downsample image for CNN comparison if enabled
     if downsample=="True":
@@ -211,6 +207,7 @@ def predict(model, filename, img, downsample, scale, total_image):
     bcImageSave = bcImage*255
     cv2.imwrite(saveFileName, bcImageSave) 
     xprint("Time to upscale to Bi-Cubic = %f" % (time.time()  - starttime_BC))
+    # ---------------------------------------------------------------
 
 
     if downsample=="True":
@@ -280,10 +277,8 @@ def predict(model, filename, img, downsample, scale, total_image):
         
     # Reconstruct the image
     final_image = numpy.array(final_matrix)
-    print(final_image.shape)
     numrows, numcols, height, width = numpy.shape(final_matrix)
     final_image = final_image.reshape(numrows, numcols, height, width).swapaxes(1, 2).reshape(height*numrows, width*numcols, 1)
-    print(final_image.shape)
 
     # Remove the black border
     finalRowStart = (final_image.shape[0]-outRows)//2
@@ -317,14 +312,6 @@ def predict(model, filename, img, downsample, scale, total_image):
         (nnList[count-1,2], blList[count-1,2], bcList[count-1,2], reconList[count-1,2], reconList[count-1,2] - bcList[count-1,2]))
         
         return nnList[count-1,0], blList[count-1,0], bcList[count-1,0], reconList[count-1,0], reconList[count-1,0] - bcList[count-1,0], nnList[count-1,1], blList[count-1,1], bcList[count-1,1], reconList[count-1,1], reconList[count-1,1] - bcList[count-1,1], nnList[count-1,2], blList[count-1,2], bcList[count-1,2], reconList[count-1,2], reconList[count-1,2] - bcList[count-1,2]
-
-        # comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
-        # (nnList[count-1,0], blList[count-1,0], bcList[count-1,0], reconList[count-1,0], reconList[count-1,0] - bcList[count-1,0]))
-        # comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
-        # (nnList[count-1,1], blList[count-1,1], bcList[count-1,1], reconList[count-1,1], reconList[count-1,1] - bcList[count-1,1]))
-        # comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
-        # (nnList[count-1,2], blList[count-1,2], bcList[count-1,2], reconList[count-1,2], reconList[count-1,2] - bcList[count-1,2]))
-        # comparison.close()
-
-
+    
+    
 
