@@ -12,6 +12,7 @@ import zipfile
 import shutil
 import base64
 import skimage.io
+import pandas as pd
 from multiprocessing.dummy import Pool as ThreadPool
 
 # Machine learning libraries
@@ -21,6 +22,7 @@ import sisrPredict
 # Helper libraries
 import numpy as np
 
+import csv
 # Create the Flask Web application
 app = Flask(__name__)
 
@@ -134,17 +136,22 @@ def upload():
                     bcSSIM += result[12]
                     rcSSIM += result[13]
                     diffSSIM += result[14]
+
                 comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
                 (nnMSE/total_image, blMSE/total_image, bcMSE/total_image, rcMSE/total_image, diffMSE/total_image))
                 comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
                 (nnPSNR/total_image, blPSNR/total_image, bcPSNR/total_image, rcPSNR/total_image, diffPSNR/total_image))
                 comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
                 (nnSSIM/total_image, blSSIM/total_image, bcSSIM/total_image, rcSSIM/total_image, diffSSIM/total_image))
+
+                # Write to the csv file
+                read_file = pd.read_csv ('upscaledImages/comparisonResult.txt', sep=",",names=["NearNeighbour", "Bi-linear", "Bi-cubic", "Reconstruct","Difference"])
+                read_file.index=["MSE", "PSNR", "SSIM"]
+                read_file.to_csv ('upscaledImages/comparisonResult.csv',sep=',')
                 
             else:
                 pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
-            
-            comparison.close()
+
             print("Time to finish upscaling = %f" % (time.time()  - startTimeX)) 
 
         else: #filetype == "single_image"
@@ -170,10 +177,16 @@ def upload():
                 comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
                 (result[10], result[11], result[12], result[13], result[14])) 
 
+                comparison.close()
+
+                # Write to the csv file
+                read_file = pd.read_csv ('upscaledImages/comparisonResult.txt', sep=",",names=["NearNeighbour", "Bi-linear", "Bi-cubic", "Reconstruct","Difference"])
+                read_file.index=["MSE", "PSNR", "SSIM"]
+                read_file.to_csv ('upscaledImages/comparisonResult.csv',sep=',')
+
             else:
                 upScaleImage(modelName, fileName, img, qualityMeasure, int(scale), 1)
 
-            comparison.close()
             print("Total time to upscale = %f" % (time.time()  - startTimeX))
 
         # Zips upscaled images
