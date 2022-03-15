@@ -178,8 +178,10 @@ def predict(model, filename, img, downsample, scale, total_image):
          gtImage = skimage.img_as_uint(img) & 0xFFF0
     elif img.shape[-1] == 4:
         gtImage = skimage.img_as_uint(skimage.color.rgb2gray(skimage.color.rgba2rgb(img))) & 0xFFF0
-    else:
+    elif img.shape[-1] == 3:
          gtImage = skimage.img_as_uint(skimage.color.rgb2gray(img)) & 0xFFF0
+    else:
+        gtImage = img[:,:, 0] #Special case for images that have 2 or less channles
 
     gtImage = skimage.img_as_float(gtImage)
     smallImage = gtImage

@@ -105,7 +105,7 @@ def upload():
 
             zippedFilesPath = [ "./uploadedFile/extractedImages/" + s for s in zippedFiles]
             # Load CNN
-            startTimeX = time.time() 
+            
 
             ####################################
             # Upscale each image in the folder #
@@ -116,6 +116,8 @@ def upload():
 
             # Multithreading = (took me 25s for 8 files, 68s for 32 files, each x4 upscale)
             pool = ThreadPool(os.cpu_count())
+
+            startTimeX = time.time() 
             # print(type(qualityMeasure))
             if qualityMeasure=="True":
                 results = pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
