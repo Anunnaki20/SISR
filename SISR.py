@@ -226,7 +226,8 @@ def sendZip():
         with open("./upscaledZip.zip", 'rb') as f:
             data = f.readlines()
         
-        os.remove("./upscaledZip.zip")
+        if os.path.isdir("./upscaledZip.zip"):
+            os.remove("./upscaledZip.zip")
         cleanDirectories()
         
         return Response(data, 
@@ -294,4 +295,4 @@ def cleanDirectories():
 
 # Run the server on the local host
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=False, host='0.0.0.0')
