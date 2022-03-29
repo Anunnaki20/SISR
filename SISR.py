@@ -110,7 +110,7 @@ def upload():
             ####################################
             # Upscale each image in the folder #
             ####################################  
-            gtImageFiles = [skimage.io.imread(im) for im in zippedFilesPath]
+            gtImageFiles = [skimage.io.imread(im, plugin='pil') for im in zippedFilesPath]
             total_image = len(gtImageFiles)
 
 
