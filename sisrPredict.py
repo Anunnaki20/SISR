@@ -244,25 +244,25 @@ def predict(model, filename, img, downsample, scale, total_image):
     # break image into patches and upscale then put back together
     # NOTE: this only works if the shape of the image array rows*colums is evenly divisable by 128*128
     tim1 = time.time()
-    if total_image>1:
-        with tf.device('/gpu:0'):
-            result = model.predict(
-                # numpy.vstack(test_list), 
-                patch_test,
-                #verbose = 1,
-                # steps = 1,
-                # batch_size=len(patch_image)
-            )
+    # if total_image>1:
+    with tf.device('/gpu:0'):
+        result = model.predict(
+            # numpy.vstack(test_list), 
+            patch_test,
+            #verbose = 1,
+            # steps = 1,
+            # batch_size=len(patch_image)
+        )
 
-    else:
-        with tf.device('/cpu:0'):
-            result = model.predict(
-                # numpy.vstack(test_list), 
-                patch_test,
-                #verbose = 1,
-                # steps = 1,
-                # batch_size=len(patch_image)
-            )
+    # else:
+    #     with tf.device('/cpu:0'):
+    #         result = model.predict(
+    #             # numpy.vstack(test_list), 
+    #             patch_test,
+    #             #verbose = 1,
+    #             # steps = 1,
+    #             # batch_size=len(patch_image)
+    #         )
     
     # Put the patches back in the proper order
     count = 0
