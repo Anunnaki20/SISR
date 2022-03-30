@@ -120,7 +120,7 @@ def upload():
 
             startTimeX = time.time() 
             # print(type(qualityMeasure))
-            if qualityMeasure=="True":
+            if qualityMeasure=="True" and total_image>0:
                 results = pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
                 #print(results)
                 for index, result in enumerate(results):
@@ -154,6 +154,7 @@ def upload():
                 read_file.index=["MSE", "PSNR", "SSIM"]
                 read_file.to_csv ('upscaledImages/comparisonResult.csv',sep=',')
                 
+            
             else:
                 pool.starmap(upScaleImage,zip(itertools.repeat(modelName),zippedFiles,gtImageFiles,itertools.repeat(qualityMeasure),itertools.repeat(int(scale)),itertools.repeat(total_image)))
 
