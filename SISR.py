@@ -84,6 +84,7 @@ def upload():
         # Create the comparison result file
         comparison = open("upscaledImages/comparisonResult.txt", "a")
 
+
         if filetype == "zip":
 
             print("File Type:", filetype, ", Scale:",  scale, ", Model:", modelName, ", Quality Measure?:", qualityMeasure)  
@@ -145,6 +146,8 @@ def upload():
                 (nnPSNR/total_image, blPSNR/total_image, bcPSNR/total_image, rcPSNR/total_image, diffPSNR/total_image))
                 comparison.write('%12.6f,%12.6f,%12.6f,%12.6f,%12.6f\n' % 
                 (nnSSIM/total_image, blSSIM/total_image, bcSSIM/total_image, rcSSIM/total_image, diffSSIM/total_image))
+
+                comparison.close()
 
                 # Write to the csv file
                 read_file = pd.read_csv ('upscaledImages/comparisonResult.txt', sep=",",names=["NearNeighbour", "Bi-linear", "Bi-cubic", "Reconstruct","Difference"])
